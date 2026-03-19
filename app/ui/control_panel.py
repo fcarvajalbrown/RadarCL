@@ -254,15 +254,15 @@ class ControlPanel(QWidget):
 
     def get_domain(self) -> str:
         """Return the target email domain input value."""
-        return self._domain_input.text().strip()
+        return str(self._domain_input.text()).strip()
 
     def get_seed(self) -> str:
         """Return the seed URL or keyword input value."""
-        return self._seed_input.text().strip()
+        return str(self._seed_input.text()).strip()
 
     def get_pattern(self) -> str:
         """Return the optional email pattern input value."""
-        return self._pattern_input.text().strip()
+        return str(self._pattern_input.text()).strip()
 
     def get_phase2_enabled(self) -> bool:
         """Return True if Phase 2 expansion is enabled."""

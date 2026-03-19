@@ -28,7 +28,7 @@ class CrawlerWorker(QThread):
         Emitted for each pattern-generated candidate: (email, source_url).
     debug_message : Signal(str)
         Emitted for crawler debug messages (URLs visited, errors).
-    finished : Signal()
+    crawl_finished : Signal()
         Emitted when the crawl completes or is stopped.
     """
 
@@ -48,6 +48,7 @@ class CrawlerWorker(QThread):
         pattern: str = "",
         request_delay: float = 0.5,
         concurrency: int = 3,
+        pause_event: asyncio.Event | None = None,
     ) -> None:
         """
         Initialise the crawler worker.
@@ -69,6 +70,8 @@ class CrawlerWorker(QThread):
             Seconds to wait between requests. Default 0.5s.
         concurrency : int
             Simultaneous requests. Default 3 for low-spec machines.
+        pause_event : asyncio.Event | None
+            External pause event. If None, a new one is created.
         """
         super().__init__()
         self._seeds = seeds
@@ -81,10 +84,20 @@ class CrawlerWorker(QThread):
         self._request_delay = request_delay
         self._concurrency = concurrency
         self._stop_flag = False
+        self._pause_event = pause_event or asyncio.Event()
+        self._pause_event.set()
 
     def stop(self) -> None:
         """Signal the worker to stop at the next opportunity."""
         self._stop_flag = True
+
+    def pause(self) -> None:
+        """Freeze the crawler without losing queue state."""
+        self._pause_event.clear()
+
+    def resume(self) -> None:
+        """Resume the crawler from where it paused."""
+        self._pause_event.set()
 
     def run(self) -> None:
         """Entry point for the background thread."""
@@ -106,6 +119,7 @@ class CrawlerWorker(QThread):
             max_pages=self._max_pages,
             respect_robots=self._respect_robots,
             concurrency=self._concurrency,
+            pause_event=self._pause_event, # type: ignore
         )
 
         async for url, html in crawler.crawl():

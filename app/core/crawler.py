@@ -63,6 +63,16 @@ class Crawler:
         self._visited: Set[str] = set()
         self._pages_crawled: int = 0
         self._phase2_active: bool = False
+        self._pause_event = asyncio.Event()
+        self._pause_event.set()
+    
+    def pause(self) -> None:
+        """Pause the crawler by clearing the pause event."""
+        self._pause_event.clear()
+
+    def resume(self) -> None:
+        """Resume the crawler by setting the pause event."""
+        self._pause_event.set()
 
     async def crawl(self) -> AsyncGenerator[tuple[str, str], None]:
         """Yield (url, html) for each successfully fetched page."""
@@ -88,6 +98,8 @@ class Crawler:
                     self._phase2_active = True
 
                 url, depth = await queue.get()
+                # Block here if paused, resuming when event is set
+                await self._pause_event.wait()
                 if url in self._visited or depth > self.max_depth:
                     continue
                 self._visited.add(url)
@@ -122,7 +134,7 @@ class Crawler:
         soup = BeautifulSoup(html, 'lxml')
         links = []
         for tag in soup.find_all('a', href=True):
-            full = urljoin(base_url, tag['href'].strip())
+            full = urljoin(base_url, tag['href'].strip()) # type: ignore
             parsed = urlparse(full)
             if parsed.scheme in ('http', 'https'):
                 links.append(full)
