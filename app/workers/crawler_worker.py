@@ -35,7 +35,7 @@ class CrawlerWorker(QThread):
     email_found: Signal = Signal(str, str)
     candidate_found: Signal = Signal(str, str)
     debug_message: Signal = Signal(str)
-    finished: Signal = Signal()
+    crawl_finished: Signal = Signal()
 
     def __init__(
         self,
@@ -89,7 +89,7 @@ class CrawlerWorker(QThread):
     def run(self) -> None:
         """Entry point for the background thread."""
         asyncio.run(self._crawl())
-        self.finished.emit()
+        self.crawl_finished.emit()
 
     async def _crawl(self) -> None:
         """

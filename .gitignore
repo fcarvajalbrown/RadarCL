@@ -1,1 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
 venv/
+env/
+.venv/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+*.spec
+
+# PyInstaller output
+*.exe
+*.app
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Database (session history)
+*.db
+*.sqlite3
+~/.radarcl/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# Editor / IDE
+.vscode/
+.idea/
+*.suo
+*.user
+*.sublime-project
+*.sublime-workspace
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# RadarCL exports (never commit scraped data)
+RadarCL-*.csv
+CL-Emails-*.csv
+
+# API keys / credentials
+keyring_backup.json
+secrets.json
