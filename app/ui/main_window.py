@@ -52,30 +52,34 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(16, 16, 16, 16)
         root_layout.setSpacing(12)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setChildrenCollapsible(False)
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setChildrenCollapsible(False)
 
         # Left: controls
         self.control_panel = ControlPanel()
-        splitter.addWidget(self.control_panel)
+        self._splitter.addWidget(self.control_panel)
 
         # Centre: live terminal
         self.terminal = TerminalPanel()
-        splitter.addWidget(self.terminal)
+        self._splitter.addWidget(self.terminal)
 
         # Right: results table (hidden until verification completes)
         self.results_table = ResultsTable()
         self.results_table.hide()
-        splitter.addWidget(self.results_table)
+        self._splitter.addWidget(self.results_table)
 
         # Proportional split: 22% controls, 78% terminal (results replaces some later)
         total = self.width()
-        splitter.setSizes([int(total * 0.22), int(total * 0.78), 0])
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 1)
+        self._splitter.setSizes([
+                    int(total * 0.22),
+                    int(total * 0.39),
+                    int(total * 0.39),
+                ])        
+        self._splitter.setStretchFactor(0, 0)
+        self._splitter.setStretchFactor(1, 1)
+        self._splitter.setStretchFactor(2, 1)
 
-        root_layout.addWidget(splitter)
+        root_layout.addWidget(self._splitter)
 
         # Wire signals
         self.control_panel.email_discovered.connect(self.terminal.append_email)
@@ -87,7 +91,7 @@ class MainWindow(QMainWindow):
         self.results_table.show()
         # Rebalance splitter: controls | terminal | results
         total = self.width()
-        self.findChild(QSplitter).setSizes([
+        self._splitter.setSizes([
             int(total * 0.22),
             int(total * 0.39),
             int(total * 0.39),
