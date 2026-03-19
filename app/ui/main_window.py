@@ -84,6 +84,8 @@ class MainWindow(QMainWindow):
         # Wire signals
         self.control_panel.email_discovered.connect(self.terminal.append_email)
         self.control_panel.verification_done.connect(self._on_verification_done)
+        self.control_panel.session_resumed.connect(self.terminal.add_divider)
+        self.control_panel.candidate_discovered.connect(self.terminal.append_email)
 
     def _on_verification_done(self, results: list) -> None:
         """Show and populate results table after verification finishes."""

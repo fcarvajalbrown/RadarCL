@@ -81,6 +81,7 @@ class TerminalPanel(QWidget):
 
         # ── Email feed (always visible)
         self._feed = QTextEdit()
+        self._feed.setAcceptRichText(True)
         self._feed.setReadOnly(True)
         self._feed.setFont(QFont("Consolas", 10))
         self._feed.setStyleSheet("""
@@ -139,6 +140,14 @@ class TerminalPanel(QWidget):
         if source:
             self._debug_log.append(f"[found] {email}  ←  {source}")
             self._scroll_to_bottom(self._debug_log)
+
+    def add_divider(self) -> None:
+        """Insert a visible resumed divider line into the feed."""
+        self._feed.append(
+            '<hr style="border: none; border-top: 1px solid #CCCCCC;">'
+            '<p style="color: #AAAAAA; font-size: 10px; margin: 0;">'
+            '── resumed ──</p>'
+        )
 
     def append_debug(self, message: str) -> None:
         """
