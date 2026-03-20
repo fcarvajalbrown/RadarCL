@@ -3,6 +3,11 @@ Left-side control panel.
 
 Handles all session setup, button wiring, worker lifecycle,
 seed discovery, pause/resume, and Stop & Verify flow.
+
+Layout
+------
+Top section (scrollable): all settings and configuration
+Bottom section (fixed):   progress bar, status, action buttons
 """
 
 import asyncio
@@ -11,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit,
     QPushButton, QComboBox, QProgressBar,
     QCheckBox, QFrame, QSizePolicy, QMessageBox,
-    QTextEdit
+    QTextEdit, QScrollArea
 )
 from PySide6.QtCore import Signal, Qt, QThread
 from PySide6.QtGui import QFont
@@ -81,6 +86,8 @@ class ControlPanel(QWidget):
     verification_done: Signal = Signal(list)
     # Emitted when crawler resumes (for terminal divider)
     session_resumed: Signal = Signal()
+    # Emitted when a new session starts (hides results table)
+    new_session_started: Signal = Signal()
 
     def __init__(self) -> None:
         """Initialise control panel."""
@@ -107,11 +114,47 @@ class ControlPanel(QWidget):
         self._build_ui()
 
     def _build_ui(self) -> None:
-        """Build all control widgets."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 12, 8, 12)
+        """
+        Build all control widgets.
+
+        Layout: scrollable settings area on top, fixed button
+        area pinned to the bottom so buttons are always visible.
+        """
+        # ── Outer layout: scroll area (top) + fixed buttons (bottom)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # ── Scrollable settings area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        scroll.setStyleSheet("QScrollArea { border: none; }")
+
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
+        layout.setContentsMargins(8, 12, 8, 4)
         layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        scroll.setWidget(inner)
+        outer.addWidget(scroll, stretch=1)
+
+        # ── Fixed button area (never scrolls)
+        btn_widget = QWidget()
+        btn_widget.setStyleSheet(
+            "background: #FAFAFA; border-top: 1px solid #EEEEEE;"
+        )
+        btn_layout = QVBoxLayout(btn_widget)
+        btn_layout.setContentsMargins(8, 8, 8, 12)
+        btn_layout.setSpacing(6)
+        outer.addWidget(btn_widget, stretch=0)
+
+        # ════════════════════════════════
+        # SCROLLABLE SETTINGS
+        # ════════════════════════════════
 
         # ── Title
         title = QLabel("RadarCL")
@@ -167,13 +210,14 @@ class ControlPanel(QWidget):
         self._seed_list = QTextEdit()
         self._seed_list.setReadOnly(True)
         self._seed_list.setFixedHeight(80)
+        self._seed_list.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self._seed_list.setFont(QFont("Consolas", 9))
         self._seed_list.setStyleSheet("""
             QTextEdit {
                 background: #F8F8F8;
                 color: #333333;
                 border: 1px solid #DDDDDD;
                 border-radius: 4px;
-                font-size: 10px;
                 padding: 4px;
             }
         """)
@@ -214,6 +258,7 @@ class ControlPanel(QWidget):
         layout.addWidget(self._extra_seeds)
 
         self._seed_error = QLabel("")
+        self._seed_error.setWordWrap(True)
         self._seed_error.setStyleSheet("color: #B71C1C; font-size: 10px;")
         self._seed_error.hide()
         layout.addWidget(self._seed_error)
@@ -285,7 +330,9 @@ class ControlPanel(QWidget):
         )
         layout.addWidget(self._robots_check)
 
-        layout.addWidget(_divider())
+        # ════════════════════════════════
+        # FIXED BUTTON AREA
+        # ════════════════════════════════
 
         # ── Progress
         self._progress = QProgressBar()
@@ -303,16 +350,16 @@ class ControlPanel(QWidget):
                 border-radius: 3px;
             }
         """)
-        layout.addWidget(self._progress)
+        btn_layout.addWidget(self._progress)
 
         self._status_label = QLabel("")
         self._status_label.setWordWrap(True)
         self._status_label.setStyleSheet(
             "color: #555555; font-size: 11px;"
         )
-        layout.addWidget(self._status_label)
+        btn_layout.addWidget(self._status_label)
 
-        # ── Buttons
+        # ── Start
         self._start_btn = QPushButton("▶   Start")
         self._start_btn.setFixedHeight(44)
         self._start_btn.setStyleSheet("""
@@ -332,8 +379,9 @@ class ControlPanel(QWidget):
             }
         """)
         self._start_btn.clicked.connect(self._on_start)
-        layout.addWidget(self._start_btn)
+        btn_layout.addWidget(self._start_btn)
 
+        # ── Pause
         self._pause_btn = QPushButton("⏸   Pause")
         self._pause_btn.setFixedHeight(36)
         self._pause_btn.setEnabled(False)
@@ -349,8 +397,9 @@ class ControlPanel(QWidget):
             QPushButton:disabled { color: #AAAAAA; border-color: #EEEEEE; }
         """)
         self._pause_btn.clicked.connect(self._on_pause_resume)
-        layout.addWidget(self._pause_btn)
+        btn_layout.addWidget(self._pause_btn)
 
+        # ── Stop & Verify
         self._stop_verify_btn = QPushButton("⏹   Stop && Verify")
         self._stop_verify_btn.setFixedHeight(36)
         self._stop_verify_btn.setEnabled(False)
@@ -368,8 +417,9 @@ class ControlPanel(QWidget):
             QPushButton:disabled { background-color: #AAAAAA; }
         """)
         self._stop_verify_btn.clicked.connect(self._on_stop_verify)
-        layout.addWidget(self._stop_verify_btn)
+        btn_layout.addWidget(self._stop_verify_btn)
 
+        # ── Force Quit
         self._force_quit_btn = QPushButton("✕   Force Quit")
         self._force_quit_btn.setFixedHeight(30)
         self._force_quit_btn.setEnabled(False)
@@ -385,8 +435,9 @@ class ControlPanel(QWidget):
             QPushButton:disabled { color: #AAAAAA; border-color: #EEEEEE; }
         """)
         self._force_quit_btn.clicked.connect(self._on_force_quit)
-        layout.addWidget(self._force_quit_btn)
+        btn_layout.addWidget(self._force_quit_btn)
 
+        # ── New Session
         self._new_session_btn = QPushButton("↺   New Session")
         self._new_session_btn.setFixedHeight(30)
         self._new_session_btn.setVisible(False)
@@ -401,9 +452,7 @@ class ControlPanel(QWidget):
             QPushButton:hover { background-color: #E3F2FD; }
         """)
         self._new_session_btn.clicked.connect(self._on_new_session)
-        layout.addWidget(self._new_session_btn)
-
-        layout.addStretch()
+        btn_layout.addWidget(self._new_session_btn)
 
     # ── Slot: pattern combo changed
 
@@ -418,7 +467,7 @@ class ControlPanel(QWidget):
         """
         Run seed discovery for the target domain in a background thread.
 
-        Shows spinner status while running, populates seed list on completion.
+        Shows spinner while running, populates seed list on completion.
         """
         domain = str(self._domain_input.text()).strip().lstrip('@')
         if not domain:
@@ -537,6 +586,8 @@ class ControlPanel(QWidget):
         """Stop crawler and launch verifier over collected emails."""
         if self._crawler:
             self._crawler.stop()
+            self._crawler.wait(3000)
+            self._crawler = None
 
         self._is_running = False
         self._set_running_state(False)
@@ -544,7 +595,7 @@ class ControlPanel(QWidget):
             f"Checking {len(self._collected_emails)} emails…"
         )
         self._progress.setVisible(True)
-        self._progress.setMaximum(len(self._collected_emails))
+        self._progress.setMaximum(max(len(self._collected_emails), 1))
         self._progress.setValue(0)
 
         smtp_enabled = self._verify_combo.currentIndex() == 1
@@ -560,25 +611,43 @@ class ControlPanel(QWidget):
     # ── Slot: Force Quit
 
     def _on_force_quit(self) -> None:
-        """Kill workers immediately, keep terminal, show New Session."""
+        """
+        Kill all workers immediately.
+
+        Keeps terminal content visible. Disables all buttons
+        until user clicks New Session.
+        """
         self._force_quit = True
 
         if self._crawler:
             self._crawler.stop()
+            self._crawler.wait(3000)
+            if self._crawler.isRunning():
+                self._crawler.terminate()
+                self._crawler.wait(1000)
             self._crawler = None
 
         if self._verifier:
             self._verifier.stop()
+            self._verifier.wait(3000)
+            if self._verifier.isRunning():
+                self._verifier.terminate()
+                self._verifier.wait(1000)
             self._verifier = None
 
-        if self._discovery_worker:
-            self._discovery_worker.terminate()
+        if self._discovery_worker and self._discovery_worker.isRunning():
+            self._discovery_worker.quit()
+            self._discovery_worker.wait(3000)
+            if self._discovery_worker.isRunning():
+                self._discovery_worker.terminate()
+                self._discovery_worker.wait(1000)
             self._discovery_worker = None
 
         self._is_running = False
         self._is_paused = False
         self._set_running_state(False)
 
+        # Disable all buttons until New Session
         self._start_btn.setEnabled(False)
         self._pause_btn.setEnabled(False)
         self._stop_verify_btn.setEnabled(False)
@@ -626,11 +695,15 @@ class ControlPanel(QWidget):
 
     def _on_crawl_finished(self) -> None:
         """Handle crawler finishing naturally (max pages reached)."""
+        self._is_running = False
+        self._set_running_state(False)
         if not self._force_quit:
             self._status_label.setText(
                 f"Crawl complete. {len(self._collected_emails)} emails found.\n"
                 "Click Stop && Verify to check them."
             )
+            # Re-enable Stop & Verify so user can still verify
+            self._stop_verify_btn.setEnabled(True)
 
     def _on_page_crawled(self, count: int) -> None:
         """Update status label with current page count."""
@@ -669,7 +742,15 @@ class ControlPanel(QWidget):
         self._force_quit_btn.setEnabled(running)
 
     def _reset_ui(self, keep_settings: bool) -> None:
-        """Reset UI for a new session."""
+        """
+        Reset UI for a new session.
+
+        Parameters
+        ----------
+        keep_settings : bool
+            If True, preserve domain/seed/pattern fields.
+            If False, clear everything.
+        """
         self._collected_emails = []
         self._discovered_seeds = []
         self._is_running = False
@@ -686,6 +767,7 @@ class ControlPanel(QWidget):
         self._seed_status.setText("Enter target domain then click Discover")
         self._discover_btn.setText("⟳  Discover seeds")
         self._discover_btn.setEnabled(True)
+        self._seed_error.hide()
 
         if not keep_settings:
             self._domain_input.clear()
@@ -696,6 +778,9 @@ class ControlPanel(QWidget):
             self._phase2_check.setChecked(False)
             self._verify_combo.setCurrentIndex(1)
             self._robots_check.setChecked(False)
+
+        # Notify main window to hide results table and reset splitter
+        self.new_session_started.emit()
 
     def _get_pattern(self) -> str:
         """Return the active pattern string."""

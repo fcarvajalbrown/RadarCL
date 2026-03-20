@@ -3,9 +3,10 @@ Main application window.
 
 Layout
 ------
-Left  : control panel (wizard fields + action buttons)
+Left  : control panel (scrollable settings + fixed action buttons)
 Centre: live terminal feed (emails only)
-Right : results table (hidden until Stop & Verify completes)
+Right : results table (hidden until Stop & Verify completes,
+        hidden again on New Session)
 """
 
 from PySide6.QtWidgets import (
@@ -68,33 +69,58 @@ class MainWindow(QMainWindow):
         self.results_table.hide()
         self._splitter.addWidget(self.results_table)
 
-        # Proportional split: 22% controls, 78% terminal (results replaces some later)
+        # Proportional split: 22% controls, 78% terminal
         total = self.width()
         self._splitter.setSizes([
-                    int(total * 0.22),
-                    int(total * 0.39),
-                    int(total * 0.39),
-                ])        
+            int(total * 0.22),
+            int(total * 0.78),
+            0,
+        ])
         self._splitter.setStretchFactor(0, 0)
         self._splitter.setStretchFactor(1, 1)
         self._splitter.setStretchFactor(2, 1)
 
         root_layout.addWidget(self._splitter)
 
-        # Wire signals
-        self.control_panel.email_discovered.connect(self.terminal.append_email)
-        self.control_panel.verification_done.connect(self._on_verification_done)
-        self.control_panel.session_resumed.connect(self.terminal.add_divider)
-        self.control_panel.candidate_discovered.connect(self.terminal.append_email)
+        # ── Wire signals
+        self.control_panel.email_discovered.connect(
+            self.terminal.append_email
+        )
+        self.control_panel.candidate_discovered.connect(
+            self.terminal.append_email
+        )
+        self.control_panel.verification_done.connect(
+            self._on_verification_done
+        )
+        self.control_panel.session_resumed.connect(
+            self.terminal.add_divider
+        )
+        self.control_panel.new_session_started.connect(
+            self._on_new_session
+        )
 
     def _on_verification_done(self, results: list) -> None:
         """Show and populate results table after verification finishes."""
         self.results_table.populate(results)
         self.results_table.show()
-        # Rebalance splitter: controls | terminal | results
         total = self.width()
         self._splitter.setSizes([
             int(total * 0.22),
             int(total * 0.39),
             int(total * 0.39),
+        ])
+
+    def _on_new_session(self) -> None:
+        """
+        Hide results table, clear terminal, reset splitter.
+
+        Called when user starts a new session via the New Session button.
+        """
+        self.results_table.hide()
+        self.terminal.clear()
+        total = self.width()
+        self._splitter.setSizes([
+            int(total * 0.22),
+            int(total * 0.78),
+            0,
         ])
