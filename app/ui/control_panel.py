@@ -2,22 +2,23 @@
 Left-side control panel.
 
 Handles all session setup, button wiring, worker lifecycle,
-seed validation, pause/resume, and Stop & Verify flow.
+seed discovery, pause/resume, and Stop & Verify flow.
 """
 
-import re
-from urllib.parse import urlparse
+import asyncio
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit,
     QPushButton, QComboBox, QProgressBar,
-    QCheckBox, QFrame, QSizePolicy, QMessageBox
+    QCheckBox, QFrame, QSizePolicy, QMessageBox,
+    QTextEdit
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QThread
 from PySide6.QtGui import QFont
 
 from app.core.hw_profile import get_hw_profile
 from app.core.pattern_generator import COMMON_PATTERNS
+from app.core.seed_discoverer import discover_seeds
 from app.workers.crawler_worker import CrawlerWorker
 from app.workers.verifier_worker import VerifierWorker
 
@@ -37,27 +38,36 @@ def _divider() -> QFrame:
     return line
 
 
-def _is_valid_cl_url(url: str) -> bool:
+class _DiscoveryWorker(QThread):
     """
-    Return True if url is a valid http/https URL ending in .cl.
+    Background thread for seed discovery.
 
-    Parameters
-    ----------
-    url : str
+    Runs discover_seeds() without blocking the GUI.
 
-    Returns
+    Signals
     -------
-    bool
+    seeds_found : Signal(list)
+        Emitted when discovery completes with the seed list.
     """
-    try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ('http', 'https'):
-            return False
-        host = parsed.netloc.lower().split(':')[0]
-        parts = host.split('.')
-        return len(parts) >= 2 and parts[-1] == 'cl'
-    except Exception:
-        return False
+
+    seeds_found: Signal = Signal(list)
+
+    def __init__(self, domain: str) -> None:
+        """
+        Initialise discovery worker.
+
+        Parameters
+        ----------
+        domain : str
+            Target domain to discover seeds for.
+        """
+        super().__init__()
+        self._domain = domain
+
+    def run(self) -> None:
+        """Run seed discovery in background thread."""
+        seeds = asyncio.run(discover_seeds(self._domain))
+        self.seeds_found.emit(seeds)
 
 
 class ControlPanel(QWidget):
@@ -84,7 +94,9 @@ class ControlPanel(QWidget):
         # State
         self._crawler: CrawlerWorker | None = None
         self._verifier: VerifierWorker | None = None
+        self._discovery_worker: _DiscoveryWorker | None = None
         self._collected_emails: list[tuple[str, str]] = []
+        self._discovered_seeds: list[str] = []
         self._is_running: bool = False
         self._is_paused: bool = False
         self._force_quit: bool = False
@@ -144,17 +156,65 @@ class ControlPanel(QWidget):
         self._domain_input.setFixedHeight(32)
         layout.addWidget(self._domain_input)
 
-        # ── Seed URL
-        layout.addWidget(_label("Start from (.cl URL required)"))
-        self._seed_input = QLineEdit()
-        self._seed_input.setPlaceholderText("e.g. https://bhp.cl")
-        self._seed_input.setFixedHeight(32)
-        layout.addWidget(self._seed_input)
+        # ── Seed discovery
+        layout.addWidget(_label("Seeds (discovered automatically)"))
+
+        self._seed_status = QLabel("Enter target domain then click Discover")
+        self._seed_status.setWordWrap(True)
+        self._seed_status.setStyleSheet("color: #888888; font-size: 10px;")
+        layout.addWidget(self._seed_status)
+
+        self._seed_list = QTextEdit()
+        self._seed_list.setReadOnly(True)
+        self._seed_list.setFixedHeight(80)
+        self._seed_list.setStyleSheet("""
+            QTextEdit {
+                background: #F8F8F8;
+                color: #333333;
+                border: 1px solid #DDDDDD;
+                border-radius: 4px;
+                font-size: 10px;
+                padding: 4px;
+            }
+        """)
+        layout.addWidget(self._seed_list)
+
+        self._discover_btn = QPushButton("⟳  Discover seeds")
+        self._discover_btn.setFixedHeight(28)
+        self._discover_btn.setStyleSheet("""
+            QPushButton {
+                background: #F5F5F5;
+                color: #333333;
+                font-size: 11px;
+                border: 1px solid #CCCCCC;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background: #EEEEEE; }
+            QPushButton:disabled { color: #AAAAAA; }
+        """)
+        self._discover_btn.clicked.connect(self._on_discover_seeds)
+        layout.addWidget(self._discover_btn)
+
+        # ── Extra seeds
+        layout.addWidget(_label("Add more URLs (one per line, optional)"))
+        self._extra_seeds = QTextEdit()
+        self._extra_seeds.setFixedHeight(60)
+        self._extra_seeds.setPlaceholderText(
+            "e.g. https://www.transparencia.cl\n"
+            "https://www.munitel.cl"
+        )
+        self._extra_seeds.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #DDDDDD;
+                border-radius: 4px;
+                font-size: 10px;
+                padding: 4px;
+            }
+        """)
+        layout.addWidget(self._extra_seeds)
 
         self._seed_error = QLabel("")
-        self._seed_error.setStyleSheet(
-            "color: #B71C1C; font-size: 10px;"
-        )
+        self._seed_error.setStyleSheet("color: #B71C1C; font-size: 10px;")
         self._seed_error.hide()
         layout.addWidget(self._seed_error)
 
@@ -352,14 +412,55 @@ class ControlPanel(QWidget):
         data = self._pattern_combo.itemData(index)
         self._pattern_input.setVisible(data == "__custom__")
 
+    # ── Slot: Discover seeds
+
+    def _on_discover_seeds(self) -> None:
+        """
+        Run seed discovery for the target domain in a background thread.
+
+        Shows spinner status while running, populates seed list on completion.
+        """
+        domain = str(self._domain_input.text()).strip().lstrip('@')
+        if not domain:
+            self._seed_error.setText(
+                "Enter a target domain first e.g. @nunoa.cl"
+            )
+            self._seed_error.show()
+            return
+
+        self._seed_error.hide()
+        self._discover_btn.setEnabled(False)
+        self._discover_btn.setText("⟳  Discovering…")
+        self._seed_status.setText(f"Searching for seeds for {domain}…")
+        self._seed_list.clear()
+
+        self._discovery_worker = _DiscoveryWorker(domain)
+        self._discovery_worker.seeds_found.connect(self._on_seeds_found)
+        self._discovery_worker.start()
+
+    def _on_seeds_found(self, seeds: list[str]) -> None:
+        """
+        Populate seed list after discovery completes.
+
+        Parameters
+        ----------
+        seeds : list[str]
+            Discovered seed URLs.
+        """
+        self._discovered_seeds = seeds
+        self._seed_list.setPlainText('\n'.join(seeds))
+        self._seed_status.setText(f"{len(seeds)} seeds discovered")
+        self._discover_btn.setEnabled(True)
+        self._discover_btn.setText("⟳  Rediscover")
+
     # ── Slot: Start
 
     def _on_start(self) -> None:
         """
         Validate inputs and start the crawler worker.
 
-        Shows inline error if seed URL is invalid.
-        Shows tooltip message if already running.
+        Shows tooltip if already running.
+        Shows error if no seeds available.
         """
         if self._is_running:
             self._start_btn.setToolTip(
@@ -367,11 +468,19 @@ class ControlPanel(QWidget):
             )
             return
 
-        seed = str(self._seed_input.text()).strip()
-        if not _is_valid_cl_url(seed):
+        # Combine discovered seeds with manual extras
+        all_seeds = list(self._discovered_seeds)
+        extra = str(self._extra_seeds.toPlainText()).strip()
+        if extra:
+            for line in extra.splitlines():
+                line = line.strip()
+                if line and line not in all_seeds:
+                    all_seeds.append(line)
+
+        if not all_seeds:
             self._seed_error.setText(
-                "Please enter a valid .cl URL to start from\n"
-                "e.g. https://bhp.cl"
+                "No seeds found.\n"
+                "Click 'Discover seeds' first or add URLs manually."
             )
             self._seed_error.show()
             return
@@ -386,7 +495,7 @@ class ControlPanel(QWidget):
         self._status_label.setText("Crawling…")
 
         self._crawler = CrawlerWorker(
-            seeds=[seed],
+            seeds=all_seeds,
             target_domain=str(self._domain_input.text()).strip(),
             phase2_enabled=self._phase2_check.isChecked(),
             phase1_timeout=self._get_phase1_timeout(),
@@ -400,6 +509,7 @@ class ControlPanel(QWidget):
         self._crawler.email_found.connect(self._on_email_found)
         self._crawler.candidate_found.connect(self._on_candidate_found)
         self._crawler.crawl_finished.connect(self._on_crawl_finished)
+        self._crawler.page_crawled.connect(self._on_page_crawled)
         self._crawler.start()
 
     # ── Slot: Pause / Resume
@@ -461,11 +571,14 @@ class ControlPanel(QWidget):
             self._verifier.stop()
             self._verifier = None
 
+        if self._discovery_worker:
+            self._discovery_worker.terminate()
+            self._discovery_worker = None
+
         self._is_running = False
         self._is_paused = False
         self._set_running_state(False)
 
-        # Disable all action buttons until New Session
         self._start_btn.setEnabled(False)
         self._pause_btn.setEnabled(False)
         self._stop_verify_btn.setEnabled(False)
@@ -519,13 +632,17 @@ class ControlPanel(QWidget):
                 "Click Stop && Verify to check them."
             )
 
+    def _on_page_crawled(self, count: int) -> None:
+        """Update status label with current page count."""
+        self._status_label.setText(f"Crawling… {count} sites visited")
+
     def _on_verify_progress(self, done: int, total: int) -> None:
         """Update progress bar during verification."""
         self._progress.setValue(done)
         self._status_label.setText(f"Checking {done}/{total} emails…")
 
     def _on_verify_finished(self, results: list) -> None:
-        """Forward results and reset UI after verification."""
+        """Forward results and auto-export after verification."""
         self._progress.setVisible(False)
         valid = sum(1 for r in results if r.get('status') == 'valid')
         self._status_label.setText(
@@ -535,9 +652,7 @@ class ControlPanel(QWidget):
         self._new_session_btn.setVisible(True)
         self.verification_done.emit(results)
 
-        # Auto-export
         from app.core.exporter import export_valid
-        from pathlib import Path
         export_valid(results)
 
     # ── Helpers
@@ -556,6 +671,7 @@ class ControlPanel(QWidget):
     def _reset_ui(self, keep_settings: bool) -> None:
         """Reset UI for a new session."""
         self._collected_emails = []
+        self._discovered_seeds = []
         self._is_running = False
         self._is_paused = False
         self._force_quit = False
@@ -566,10 +682,14 @@ class ControlPanel(QWidget):
         self._pause_btn.setText("⏸   Pause")
         self._set_running_state(False)
         self._start_btn.setEnabled(True)
+        self._seed_list.clear()
+        self._seed_status.setText("Enter target domain then click Discover")
+        self._discover_btn.setText("⟳  Discover seeds")
+        self._discover_btn.setEnabled(True)
 
         if not keep_settings:
             self._domain_input.clear()
-            self._seed_input.clear()
+            self._extra_seeds.clear()
             self._pattern_input.clear()
             self._pattern_combo.setCurrentIndex(0)
             self._timeout_combo.setCurrentIndex(0)
@@ -595,6 +715,6 @@ class ControlPanel(QWidget):
         """Return the target email domain input value."""
         return str(self._domain_input.text()).strip()
 
-    def get_seed(self) -> str:
-        """Return the seed URL input value."""
-        return str(self._seed_input.text()).strip()
+    def get_seeds(self) -> list[str]:
+        """Return the current list of discovered seeds."""
+        return list(self._discovered_seeds)

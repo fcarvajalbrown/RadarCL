@@ -52,6 +52,7 @@ class Crawler:
         max_depth: int = 3,
         concurrency: int = 10,
         respect_robots: bool = False,
+        pause_event: asyncio.Event | None = None,
     ) -> None:
         self.seeds = seeds
         self.phase2_enabled = phase2_enabled
@@ -63,7 +64,7 @@ class Crawler:
         self._visited: Set[str] = set()
         self._pages_crawled: int = 0
         self._phase2_active: bool = False
-        self._pause_event = asyncio.Event()
+        self._pause_event = pause_event or asyncio.Event()
         self._pause_event.set()
     
     def pause(self) -> None:
@@ -104,7 +105,7 @@ class Crawler:
                     continue
                 self._visited.add(url)
 
-                if not self._phase2_active and not is_cl_domain(url):
+                if not self._phase2_active and not is_cl_domain(url) and url not in self.seeds:
                     continue
 
                 async with semaphore:

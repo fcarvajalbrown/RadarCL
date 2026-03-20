@@ -40,7 +40,7 @@ def export_valid(results: list[dict], path: Path | None = None) -> Path:
     valid = [r for r in results if r.get('status') == 'valid']
 
     with open(path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['email', 'source', 'status'])
+        writer = csv.DictWriter(f, fieldnames=['email', 'source', 'status', 'error'], extrasaction='ignore')
         writer.writeheader()
         writer.writerows(valid)
 

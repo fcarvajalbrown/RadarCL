@@ -35,6 +35,7 @@ class CrawlerWorker(QThread):
     email_found: Signal = Signal(str, str)
     candidate_found: Signal = Signal(str, str)
     debug_message: Signal = Signal(str)
+    page_crawled: Signal = Signal(int)
     crawl_finished: Signal = Signal()
 
     def __init__(
@@ -122,11 +123,14 @@ class CrawlerWorker(QThread):
             pause_event=self._pause_event, # type: ignore
         )
 
+        pages = 0
         async for url, html in crawler.crawl():
             if self._stop_flag:
                 break
 
             self.debug_message.emit(f"[crawl] {url}")
+            pages += 1
+            self.page_crawled.emit(pages)
 
             # Scraped emails
             for record in extract_emails(html, url):
