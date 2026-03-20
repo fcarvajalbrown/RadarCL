@@ -11,14 +11,12 @@ env/
 .venv/
 
 # Distribution / packaging
-dist/
 build/
 *.egg-info/
 *.egg
 *.spec
 
 # PyInstaller output
-*.exe
 *.app
 
 # Pytest

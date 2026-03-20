@@ -1,9 +1,7 @@
 """
 Left-side control panel.
-
 Handles all session setup, button wiring, worker lifecycle,
 seed discovery, pause/resume, and Stop & Verify flow.
-
 Layout
 ------
 Top section (scrollable): all settings and configuration
@@ -11,15 +9,17 @@ Bottom section (fixed):   progress bar, status, action buttons
 """
 
 import asyncio
+import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QLineEdit,
+    QHBoxLayout, QWidget, QVBoxLayout, QLabel, QLineEdit,
     QPushButton, QComboBox, QProgressBar,
     QCheckBox, QFrame, QSizePolicy, QMessageBox,
     QTextEdit, QScrollArea
 )
 from PySide6.QtCore import Signal, Qt, QThread
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 
 from app.core.hw_profile import get_hw_profile
 from app.core.pattern_generator import COMMON_PATTERNS
@@ -27,6 +27,12 @@ from app.core.seed_discoverer import discover_seeds
 from app.workers.crawler_worker import CrawlerWorker
 from app.workers.verifier_worker import VerifierWorker
 
+
+def _assets_path() -> Path:
+    """Return assets directory, works both in dev and PyInstaller .exe."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS) / 'assets'  # type: ignore[attr-defined]
+    return Path(__file__).parent.parent.parent / 'assets'
 
 def _label(text: str) -> QLabel:
     """Return a small muted label."""
@@ -157,13 +163,25 @@ class ControlPanel(QWidget):
         # ════════════════════════════════
 
         # ── Title
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+
+        icon_label = QLabel()
+        icon_label.setPixmap(
+            QIcon(str(_assets_path() / 'icon.ico')).pixmap(28, 28)
+        )
+        title_row.addWidget(icon_label)
+
         title = QLabel("RadarCL")
         title_font = QFont()
         title_font.setPointSize(16)
         title_font.setBold(True)
         title.setFont(title_font)
         title.setStyleSheet("color: #1A1A1A; margin-bottom: 4px;")
-        layout.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch()
+
+        layout.addLayout(title_row)
 
         subtitle = QLabel("Chilean email discovery")
         subtitle.setStyleSheet(
