@@ -127,6 +127,7 @@ async def crawl_and_extract(
     concurrency: int = 3,
     pause_event: asyncio.Event | None = None,
     on_page: Callable[[str, int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> AsyncGenerator[Discovery, None]: ...
 
 def verify_all(
@@ -146,8 +147,12 @@ Design notes:
   the CLI uses it to print progress to stderr. A callback keeps the
   generator's yield type single-purpose instead of forcing an event union
   that every consumer would have to dispatch on.
-- **No stop flag or stop callback.** Consumers stop by breaking out of the
-  loop, which is what both the worker and the CLI already do naturally.
+- `should_stop` is checked once per **page**, not per yielded `Discovery`.
+  `CrawlerWorker` today checks its stop flag every page, so a consumer that
+  could only break on a yielded result would keep crawling through pages
+  containing no email addresses after Stop was pressed. `verify_all` needs
+  no equivalent, because it yields exactly once per input address and a
+  consumer-side `break` is already page-equivalent there.
 - `verify_all` yields the record dict the worker builds today
   (`email`, `source`, `status`, `error`) so `exporter.export_valid()` and
   the results table need no changes. The `VStatus` → string mapping moves
