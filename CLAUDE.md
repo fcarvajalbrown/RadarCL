@@ -97,10 +97,14 @@ gh release create v0.4.0 "installer\RadarCL-v0.4.0-Setup.exe" ^
   --title "RadarCL v0.4.0" --notes-file <notes>
 ```
 
-Release notes are user-facing, so Spanish, and they describe what changed
-for someone using the tool — not the commit log. Publishing is
-outward-facing and effectively irreversible, so ask Felipe before creating
-the Release unless he asked for it in that same turn.
+Publishing is outward-facing and effectively irreversible, so ask Felipe
+before creating the Release unless he asked for it in that same turn.
+
+**Release notes have a mandatory template and process** — invoke the
+`voz-de-felipe` skill, then run the humanizer pass, then fill the
+template. Do not improvise them and do not paste a commit log. The whole
+thing lives in [docs/release-notes.md](docs/release-notes.md); read it
+before writing a single line of a release.
 
 Antivirus false positives on the PyInstaller exe are a known, unresolved
 issue — see `docs/research/oss-tooling.md` and the "Beyond v1.0" section of

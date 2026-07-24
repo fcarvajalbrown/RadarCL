@@ -147,34 +147,7 @@ Los módulos del núcleo son independientes entre sí: `seed_discoverer`,
 
 ## Historial de versiones
 
-### v0.3.5 (actual)
-- Exportación en JSON y HTML además del CSV, elegida por la extensión de
-  `--output` o forzada con `--format`
-- El JSON y el HTML llevan todos los estados con su motivo; el CSV sigue
-  llevando solo las direcciones válidas
-  ([ADR-0010](docs/adr/0010-export-contents-differ-by-format.md))
-- Reporte HTML autocontenido: sin JavaScript, sin hojas de estilo externas,
-  se abre sin conexión
-- Interfaz gráfica completamente en español
-
-### v0.3.0
-- Modo CLI sin Qt (`python -m app.cli`) con tres subcomandos: `discover`,
-  `scan` y `verify`
-- `app/core/` documentado y utilizable como biblioteca independiente
-- `requirements-core.txt` para instalar el núcleo sin PySide6
-- Clasificación SMTP por clase de código: 250 válido, 5xx inválido,
-  4xx y 252 desconocido
-
-### v0.2.0
-- Descubrimiento automático de semillas vía crt.sh, sondeo DNS y
-  puntuación semántica
-- Rastreo sensible al tipo de entidad (municipalidad, gobierno,
-  universidad, empresa)
-- Feed de correos en vivo en la terminal
-- Verificación multietapa (sintaxis, MX, SMTP)
-- Exportación automática a CSV en el Escritorio
-- Ajuste de rendimiento según el hardware
-- Pausa/reanudación con estado de sesión preservado
+Qué cambió en cada versión, con fechas: [CHANGELOG.md](CHANGELOG.md).
 
 ## Hoja de ruta
 
