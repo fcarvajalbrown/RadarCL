@@ -19,7 +19,8 @@ from pathlib import Path
 
 from app import __version__
 from app.core.exporter import export_valid
-from app.core.pipeline import verify_all
+from app.core.hw_profile import get_hw_profile
+from app.core.pipeline import Discovery, crawl_and_extract, verify_all
 from app.core.seed_discoverer import discover_seeds
 from app.core.session import new_session, save_email
 
@@ -136,6 +137,76 @@ def build_parser() -> argparse.ArgumentParser:
         help='Silencia los mensajes de progreso en stderr.',
     )
 
+    scan = subparsers.add_parser(
+        'scan',
+        help='Pipeline completo: descubre, rastrea, extrae y verifica.',
+    )
+    scan.add_argument(
+        'domain',
+        help='Dominio de correo objetivo, por ejemplo nunoa.cl',
+    )
+    scan.add_argument(
+        '--seeds', default=None,
+        help=(
+            'Archivo con URLs semilla, una por linea. Omite el '
+            'descubrimiento automatico.'
+        ),
+    )
+    scan.add_argument(
+        '--pattern', default='',
+        help=(
+            'Plantilla para generar candidatos, por ejemplo '
+            '{first}.{last}. Sin esto no se generan candidatos.'
+        ),
+    )
+    scan.add_argument(
+        '--max-seeds', type=int, default=20,
+        help='Numero maximo de semillas a descubrir (por defecto 20).',
+    )
+    scan.add_argument(
+        '--no-duckduckgo', action='store_true',
+        help='Omite la etapa de busqueda en DuckDuckGo.',
+    )
+    scan.add_argument(
+        '--max-pages', type=int, default=None,
+        help='Limite de paginas. Por defecto lo fija el perfil de hardware.',
+    )
+    scan.add_argument(
+        '--concurrency', type=int, default=None,
+        help='Peticiones simultaneas. Por defecto lo fija el hardware.',
+    )
+    scan.add_argument(
+        '--delay', type=float, default=None,
+        help='Segundos entre peticiones. Por defecto lo fija el hardware.',
+    )
+    scan.add_argument(
+        '--phase2', action='store_true',
+        help=(
+            'Permite seguir enlaces fuera de .cl. El filtro de correos '
+            'sigue siendo solo .cl.'
+        ),
+    )
+    scan.add_argument(
+        '--phase1-timeout', type=float, default=None,
+        help='Segundos antes de activar la fase 2.',
+    )
+    scan.add_argument(
+        '--no-smtp', action='store_true',
+        help='Omite la etapa SMTP (equivale al modo rapido de la interfaz).',
+    )
+    scan.add_argument(
+        '--output', default=None,
+        help='Ruta del CSV de salida. Sin esto no se escribe ningun archivo.',
+    )
+    scan.add_argument(
+        '--no-session', action='store_true',
+        help='No registra la ejecucion en ~/.radarcl/sessions.db.',
+    )
+    scan.add_argument(
+        '--quiet', action='store_true',
+        help='Silencia los mensajes de progreso en stderr.',
+    )
+
     return parser
 
 
@@ -228,8 +299,107 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _crawl_into(
+    sink: list[Discovery],
+    seeds: list[str],
+    domain: str,
+    args: argparse.Namespace,
+    profile,
+) -> None:
+    """
+    Run the crawl, appending each discovery to sink.
+
+    Results accumulate in a caller-owned list rather than being returned,
+    so a Ctrl+C part-way through still leaves the caller holding everything
+    found up to that point.
+    """
+    async for discovery in crawl_and_extract(
+        seeds,
+        target_domain=domain,
+        phase2_enabled=args.phase2,
+        phase1_timeout=args.phase1_timeout,
+        max_pages=args.max_pages or profile.max_pages,
+        pattern=args.pattern,
+        request_delay=(
+            args.delay if args.delay is not None else profile.request_delay
+        ),
+        concurrency=args.concurrency or profile.concurrency,
+        on_page=lambda url, count: log(f"[crawl] {url}", args.quiet),
+    ):
+        sink.append(discovery)
+
+
+def cmd_scan(args: argparse.Namespace) -> int:
+    """Run the full pipeline: discover, crawl, extract, verify."""
+    domain = args.domain.lstrip('@').lower().strip()
+    profile = get_hw_profile()
+    log(
+        f"Perfil de hardware: {profile.tier} "
+        f"({profile.ram_gb} GB RAM, {profile.cpu_cores} nucleos)",
+        args.quiet,
+    )
+
+    if args.seeds:
+        seeds = read_seeds(args.seeds)
+        log(f"{len(seeds)} semillas leidas de {args.seeds}.", args.quiet)
+    else:
+        log(f"Buscando semillas para {domain}...", args.quiet)
+        seeds = asyncio.run(discover_seeds(
+            domain,
+            use_duckduckgo=not args.no_duckduckgo,
+            max_seeds=args.max_seeds,
+        ))
+        log(f"{len(seeds)} semillas encontradas.", args.quiet)
+
+    if not seeds:
+        print(
+            "No se encontraron semillas. Use --seeds para indicarlas "
+            "manualmente.",
+            file=sys.stderr,
+        )
+        return 1
+
+    session_id = None
+    if not args.no_session:
+        session_id = new_session(domain, seeds)
+
+    discoveries: list[Discovery] = []
+    interrupted = False
+    try:
+        asyncio.run(_crawl_into(discoveries, seeds, domain, args, profile))
+    except KeyboardInterrupt:
+        interrupted = True
+        log(
+            "Rastreo interrumpido. Se verifica lo encontrado hasta ahora.",
+            args.quiet,
+        )
+
+    log(f"{len(discoveries)} correos encontrados.", args.quiet)
+
+    pairs = [(d.email, d.source_url) for d in discoveries]
+    results: list[dict] = []
+    try:
+        for record in verify_all(pairs, smtp_enabled=not args.no_smtp):
+            results.append(record)
+            print(format_row(
+                record['email'], record['status'], record['source']
+            ))
+    except KeyboardInterrupt:
+        interrupted = True
+        log(
+            "Verificacion interrumpida. Se conservan los resultados "
+            "parciales.",
+            args.quiet,
+        )
+
+    _persist(session_id, results)
+    write_results(results, args.output, args.quiet)
+    return 130 if interrupted else 0
+
+
 _COMMANDS = {
     'discover': cmd_discover,
+    'scan': cmd_scan,
     'verify': cmd_verify,
 }
 

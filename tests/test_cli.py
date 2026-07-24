@@ -197,3 +197,81 @@ def test_verify_writes_csv_when_output_given(monkeypatch, tmp_path) -> None:
         "verify", "--input", str(path), "--output", str(out), "--no-session"
     ]) == 0
     assert "a@x.cl" in out.read_text(encoding="utf-8")
+
+
+def test_scan_parses_defaults() -> None:
+    """scan defaults leave tuning to the hardware profile (None = auto)."""
+    args = cli.build_parser().parse_args(["scan", "nunoa.cl"])
+    assert args.command == "scan"
+    assert args.domain == "nunoa.cl"
+    assert args.seeds is None
+    assert args.pattern == ""
+    assert args.max_pages is None
+    assert args.concurrency is None
+    assert args.delay is None
+    assert args.phase2 is False
+    assert args.no_smtp is False
+
+
+def test_scan_parses_overrides() -> None:
+    """Explicit tuning flags override the hardware profile."""
+    args = cli.build_parser().parse_args([
+        "scan", "nunoa.cl",
+        "--pattern", "{first}.{last}",
+        "--max-pages", "50",
+        "--concurrency", "2",
+        "--delay", "1.5",
+        "--phase2",
+        "--phase1-timeout", "30",
+    ])
+    assert args.pattern == "{first}.{last}"
+    assert args.max_pages == 50
+    assert args.concurrency == 2
+    assert args.delay == 1.5
+    assert args.phase2 is True
+    assert args.phase1_timeout == 30.0
+
+
+def test_scan_runs_pipeline_and_prints_results(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    """scan discovers, crawls and verifies, printing TSV rows to stdout."""
+    seeds_file = tmp_path / "seeds.txt"
+    seeds_file.write_text("http://a.cl\n", encoding="utf-8")
+
+    async def _fake_crawl(seeds, target_domain=None, **kwargs):
+        yield cli.Discovery(
+            email="contacto@nunoa.cl",
+            source_url="http://a.cl",
+            generated=False,
+        )
+
+    monkeypatch.setattr(cli, "crawl_and_extract", _fake_crawl)
+    monkeypatch.setattr(
+        cli,
+        "verify_all",
+        lambda emails, **kw: iter([
+            {"email": e, "source": s, "status": "valid", "error": ""}
+            for e, s in emails
+        ]),
+    )
+
+    exit_code = cli.main([
+        "scan", "nunoa.cl", "--seeds", str(seeds_file), "--no-session"
+    ])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert captured.out == "contacto@nunoa.cl\tvalid\thttp://a.cl\n"
+    assert "1 validos" in captured.err
+
+
+def test_scan_fails_when_no_seeds(monkeypatch, capsys) -> None:
+    """With no seeds discovered, scan reports an error and exits 1."""
+    async def _no_seeds(domain, use_duckduckgo=True, max_seeds=20):
+        return []
+
+    monkeypatch.setattr(cli, "discover_seeds", _no_seeds)
+
+    assert cli.main(["scan", "nunoa.cl", "--no-session"]) == 1
+    assert "No se encontraron semillas" in capsys.readouterr().err
