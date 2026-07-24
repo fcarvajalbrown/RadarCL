@@ -1,7 +1,7 @@
 # 0004 - Staged verification with UNKNOWN as a first-class outcome
 
 ## Status
-Accepted
+Superseded by [0007](0007-smtp-response-classification.md)
 
 ## Date
 2026-07-23 (retroactive - decision predates this record)

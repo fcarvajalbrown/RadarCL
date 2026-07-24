@@ -8,6 +8,7 @@ Note: SMTP tests require a live internet connection.
 """
 
 import pytest
+from app.core import verifier
 from app.core.verifier import verify, VStatus
 
 
@@ -58,6 +59,93 @@ def test_error_message_populated_on_failure() -> None:
     """Failed verification should populate the error field."""
     result = verify("user@thisdoesnotexist123456.cl", smtp_enabled=False)
     assert result.error != ""
+
+
+class _FakeMX:
+    """Minimal stand-in for a dnspython MX rdata object."""
+    preference = 10
+    exchange = "mx.example.cl."
+
+
+class _FakeSMTP:
+    """Stand-in for smtplib.SMTP returning a canned RCPT reply code."""
+
+    rcpt_code = 250
+
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
+    def __enter__(self) -> "_FakeSMTP":
+        return self
+
+    def __exit__(self, *exc_info) -> bool:
+        return False
+
+    def connect(self, host, port):
+        return (220, b"ready")
+
+    def helo(self, name=""):
+        return (250, b"ok")
+
+    def mail(self, sender):
+        return (250, b"ok")
+
+    def rcpt(self, recipient):
+        return (self.rcpt_code, b"canned reply")
+
+
+@pytest.fixture
+def smtp_code(monkeypatch):
+    """Force verify()'s SMTP stage to return a given RCPT reply code."""
+    def _apply(code: int) -> None:
+        monkeypatch.setattr(
+            verifier.dns.resolver, "resolve", lambda *a, **k: [_FakeMX()]
+        )
+        monkeypatch.setattr(
+            verifier.smtplib,
+            "SMTP",
+            type("_Patched", (_FakeSMTP,), {"rcpt_code": code}),
+        )
+    return _apply
+
+
+def test_smtp_250_is_valid(smtp_code) -> None:
+    """A 250 acceptance is the only VALID outcome."""
+    smtp_code(250)
+    result = verify("user@example.cl", smtp_enabled=True)
+    assert result.status == VStatus.VALID
+    assert result.smtp_ok is True
+
+
+def test_smtp_550_is_invalid(smtp_code) -> None:
+    """550 is a permanent failure: mailbox does not exist."""
+    smtp_code(550)
+    result = verify("user@example.cl", smtp_enabled=True)
+    assert result.status == VStatus.INVALID
+    assert result.smtp_ok is False
+    assert "550" in result.error
+
+
+def test_smtp_450_greylisting_is_unknown(smtp_code) -> None:
+    """450 is a transient deferral (greylisting), not a rejection."""
+    smtp_code(450)
+    result = verify("user@example.cl", smtp_enabled=True)
+    assert result.status == VStatus.UNKNOWN
+    assert "450" in result.error
+
+
+def test_smtp_421_rate_limit_is_unknown(smtp_code) -> None:
+    """421 is a transient rate-limit, not a rejection."""
+    smtp_code(421)
+    result = verify("user@example.cl", smtp_enabled=True)
+    assert result.status == VStatus.UNKNOWN
+
+
+def test_smtp_252_cannot_verify_is_unknown(smtp_code) -> None:
+    """252 means the server states it cannot verify the address."""
+    smtp_code(252)
+    result = verify("user@example.cl", smtp_enabled=True)
+    assert result.status == VStatus.UNKNOWN
 
 
 @pytest.mark.smtp

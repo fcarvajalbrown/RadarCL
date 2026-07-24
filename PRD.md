@@ -28,7 +28,7 @@ assemble by hand for `.cl` targets: entity-aware seed discovery → phased
 crawling → email extraction/de-obfuscation → pattern-based generation for
 undisclosed addresses → staged, honest verification (syntax → MX → SMTP,
 with UNKNOWN as a first-class outcome per
-[ADR-0004](docs/adr/0004-verification-staging-unknown-not-invalid.md)).
+[ADR-0007](docs/adr/0007-smtp-response-classification.md)).
 
 ## Primary audience
 
@@ -75,7 +75,7 @@ internal use.
 - **Hunter.io / RocketReach / Snov.io** (paid SaaS): differentiate on
   pattern-guessing plus real-time verification. RadarCL already does both
   of those, combined, for free and open-source
-  ([ADR-0004](docs/adr/0004-verification-staging-unknown-not-invalid.md),
+  ([ADR-0007](docs/adr/0007-smtp-response-classification.md),
   `pattern_generator.py`) — this combination is the single clearest thing
   worth stating plainly in outward-facing copy rather than leaving implicit.
 

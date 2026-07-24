@@ -4,7 +4,8 @@ Multi-stage email verifier.
 Stages (run in order):
   1. Syntax  — regex format check
   2. MX      — DNS MX record lookup
-  3. SMTP    — handshake without sending email
+  3. SMTP    — handshake without sending email; 250 valid,
+               5xx invalid, 4xx/252 unknown (ADR-0007)
   4. API     — optional third-party (placeholder)
 """
 
@@ -98,8 +99,18 @@ def verify(
             smtp.mail('check@verify.cl')
             code, _ = smtp.rcpt(email)
             result.smtp_ok = code == 250
-            result.status = VStatus.VALID if result.smtp_ok else VStatus.INVALID
-            if not result.smtp_ok:
+            if result.smtp_ok:
+                result.status = VStatus.VALID
+            elif 500 <= code < 600:
+                # Permanent failure per RFC 5321 — 550 5.1.1 is
+                # "Bad destination mailbox address". See ADR-0007.
+                result.status = VStatus.INVALID
+                result.error = f"SMTP RCPT code {code}"
+            else:
+                # 4xx is transient by definition (450/451 greylisting,
+                # 421 rate-limiting) and 252 means the server says it
+                # cannot verify. Absence of information, not rejection.
+                result.status = VStatus.UNKNOWN
                 result.error = f"SMTP RCPT code {code}"
     except (smtplib.SMTPException, socket.error, OSError) as exc:
         result.smtp_ok = None
