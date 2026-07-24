@@ -4,7 +4,9 @@ Phase-based, not calendar-dated. Status values: `Not Started`, `In Progress`,
 `Blocked`, `Done`.
 
 ## Phase 0 — Discoverability & branding
-**Status:** Done
+**Status:** In Progress — reopened; README/branding still lags the quality
+bar other project agents (e.g. MuniANCI's) have hit. Next agent should
+focus specifically on closing that SEO/discoverability/branding gap.
 
 Make RadarCL findable and legible to the audience it's actually useful to:
 developers building civic-tech, govtech, or OSINT-style tooling around
