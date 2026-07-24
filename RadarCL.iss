@@ -51,8 +51,9 @@ SolidCompression=yes
 LZMAUseSeparateProcess=yes
 
 ; Appearance
+; WizardResizable is not set: it is obsolete and ignored in current Inno
+; Setup 6.x, which makes the wizard resizable unconditionally.
 WizardStyle=modern
-WizardResizable=yes
 ShowLanguageDialog=no
 LanguageDetectionMethod=none
 
