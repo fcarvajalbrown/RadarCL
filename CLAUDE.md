@@ -31,6 +31,16 @@ Packaging (not part of normal dev loop): PyInstaller builds `dist/RadarCL.exe` (
 `.spec` file is committed — generate one with `pyinstaller` before building); the Inno
 Setup script `RadarCL.iss` then wraps that exe into `installer/RadarCL-v1.0-Setup.exe`.
 
+## Language
+
+**All user-facing text is always in Spanish** — README, GitHub repo
+description, in-app GUI strings/labels (`app/ui/`), and status/error
+messages shown to the user. This is a standing rule, not per-file
+discretion. Developer-facing text (code, comments, docstrings, commit
+messages, this file, ADRs) stays in English. GitHub topics are exempt —
+they're fixed platform taxonomy slugs (e.g. `osint`, `chile`), not
+translatable prose.
+
 ## Architecture
 
 **Strict layering — `app/core/` has zero Qt imports.** All scraping/verification logic
