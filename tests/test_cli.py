@@ -113,3 +113,87 @@ def test_discover_prints_seeds_to_stdout(monkeypatch, capsys) -> None:
     captured = capsys.readouterr()
     assert captured.out == "http://a.cl\nhttp://b.cl\n"
     assert "2 semillas encontradas." in captured.err
+
+
+def test_verify_parses_defaults() -> None:
+    """verify defaults: SMTP on, no output file, session writes on."""
+    args = cli.build_parser().parse_args(["verify", "--input", "e.txt"])
+    assert args.command == "verify"
+    assert args.input == "e.txt"
+    assert args.no_smtp is False
+    assert args.output is None
+    assert args.no_session is False
+
+
+def test_verify_requires_input() -> None:
+    """--input is mandatory for verify."""
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(["verify"])
+    assert exc.value.code == 2
+
+
+def test_verify_prints_tsv_rows(monkeypatch, capsys, tmp_path) -> None:
+    """verify writes tab-separated rows to stdout and a summary to stderr."""
+    path = tmp_path / "emails.txt"
+    path.write_text("a@x.cl\nb@y.cl\n", encoding="utf-8")
+
+    def _fake_verify_all(emails, **kwargs):
+        for email, source in emails:
+            yield {
+                "email": email,
+                "source": source,
+                "status": "valid",
+                "error": "",
+            }
+
+    monkeypatch.setattr(cli, "verify_all", _fake_verify_all)
+    monkeypatch.setattr(cli, "new_session", lambda *a, **k: 1)
+    monkeypatch.setattr(cli, "save_email", lambda *a, **k: None)
+
+    assert cli.main(["verify", "--input", str(path)]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "a@x.cl\tvalid\t\nb@y.cl\tvalid\t\n"
+    assert "2 validos" in captured.err
+
+
+def test_verify_no_session_skips_persistence(monkeypatch, tmp_path) -> None:
+    """--no-session writes nothing to the SQLite store."""
+    path = tmp_path / "emails.txt"
+    path.write_text("a@x.cl\n", encoding="utf-8")
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("session store must not be touched")
+
+    monkeypatch.setattr(cli, "new_session", _boom)
+    monkeypatch.setattr(cli, "save_email", _boom)
+    monkeypatch.setattr(
+        cli,
+        "verify_all",
+        lambda emails, **kw: iter([
+            {"email": "a@x.cl", "source": "", "status": "unknown", "error": ""}
+        ]),
+    )
+
+    assert cli.main(["verify", "--input", str(path), "--no-session"]) == 0
+
+
+def test_verify_writes_csv_when_output_given(monkeypatch, tmp_path) -> None:
+    """--output writes valid results through the existing CSV exporter."""
+    path = tmp_path / "emails.txt"
+    path.write_text("a@x.cl\n", encoding="utf-8")
+    out = tmp_path / "out.csv"
+
+    monkeypatch.setattr(
+        cli,
+        "verify_all",
+        lambda emails, **kw: iter([
+            {"email": "a@x.cl", "source": "http://x.cl",
+             "status": "valid", "error": ""}
+        ]),
+    )
+
+    assert cli.main([
+        "verify", "--input", str(path), "--output", str(out), "--no-session"
+    ]) == 0
+    assert "a@x.cl" in out.read_text(encoding="utf-8")
