@@ -14,6 +14,30 @@ Never maintain a separate narrative for the Release page. Two documents
 holding the same content drift apart, and the one nobody looks at is the
 one that ends up lying.
 
+## Never paste the section by hand
+
+```bash
+python scripts/release_notes.py 0.3.5 > notes.md
+```
+
+**GitHub renders a release body with hard line breaks on**: every newline
+becomes a `<br>`. A Markdown *file* viewed in the repository does not do
+this, it reflows paragraphs normally. CHANGELOG.md is hard wrapped at 72
+columns, which is correct for the file and wrong for the release page,
+where the same text comes out as a ragged column using roughly half the
+available width.
+
+`scripts/release_notes.py` exists so nobody has to remember that. It pulls
+the version's section, joins each paragraph and list item onto one line so
+the renderer decides the breaks, drops the heading (the release title
+already carries the version), and rewrites relative `docs/` links to
+absolute URLs pinned at the tag, because a relative link in a release body
+does not resolve.
+
+Do not fix the ragged output by unwrapping CHANGELOG.md itself. The file
+is read in editors and terminals and wants to stay wrapped; only the
+published copy is unwrapped.
+
 ## Process, in this order
 
 1. **Invoke the `voz-de-felipe` skill.** Actually invoke it. Writing "in

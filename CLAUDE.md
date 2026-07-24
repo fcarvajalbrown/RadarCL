@@ -91,11 +91,17 @@ thing that only breaks in the packaged exe.
 **4. Publish.** Tag and Release, with the installer attached:
 
 ```bash
+python scripts/release_notes.py 0.4.0 > notes.md
 git tag -a v0.4.0 -m "RadarCL v0.4.0"
 git push origin v0.4.0
 gh release create v0.4.0 "installer\RadarCL-v0.4.0-Setup.exe" ^
-  --title "RadarCL v0.4.0" --notes-file <notes>
+  --title "RadarCL v0.4.0" --notes-file notes.md
 ```
+
+**Generate the notes with that script, never by pasting.** GitHub renders
+a release body with hard line breaks on, so CHANGELOG.md's 72-column
+wrapping survives into the page and produces a ragged half-width column.
+The script unwraps the published copy and leaves the file alone.
 
 Publishing is outward-facing and effectively irreversible, so ask Felipe
 before creating the Release unless he asked for it in that same turn.
