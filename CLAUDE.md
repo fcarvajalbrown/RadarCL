@@ -165,8 +165,11 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   ([ADR-0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)) — the fallback lives
   inside stage 1 and is not a new stage. **`_KNOWN_SOURCES` rots**: four entries had
   silently become a real-estate portal, a content blog, an arbitration centre and an
-  unreachable host. Never add an entry without fetching it first, and keep the
-  `smtp`-marked test in `tests/test_seed_discoverer.py` that refetches them all.
+  unreachable host, and three of them were still answering 200 while doing it. It maps
+  each URL to a phrase naming the institution, and the `smtp`-marked test in
+  `tests/test_seed_discoverer.py` fails if that phrase leaves the page
+  ([ADR-0012](docs/adr/0012-curated-sources-assert-identity.md)). Never add a source
+  without opening its page and picking a phrase that would die with a change of owner.
 - `app/core/crawler.py` — async `httpx` crawler. Phase 1 restricts link-following to
   `.cl` domains; Phase 2 (optional, activated after `phase1_timeout`) follows external
   links too, but the email filter (`is_cl_domain`) always stays `.cl`-only regardless of

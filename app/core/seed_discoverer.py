@@ -197,10 +197,18 @@ _CL_MUNICIPALITIES: set[str] = {
 # regardless of what other stages find - this curation, not source volume,
 # is what the PRD claims as the difference from a generic OSINT tool.
 #
-# Every entry below was fetched on 2026-07-24 and confirmed to be the
-# organisation it claims to be. That check is not decoration: four earlier
-# entries had rotted into something else entirely and nobody noticed.
-# `tests/test_seed_discoverer.py` re-runs it under the `smtp` marker.
+# Each entry maps a URL to a phrase its page must contain. The phrase is
+# not decoration and it is not a comment: `tests/test_seed_discoverer.py`
+# fetches every URL under the `smtp` marker and fails if the phrase is
+# gone. Four earlier entries had quietly turned into something else and a
+# reachability check would have passed all of them, so identity is
+# asserted rather than assumed (ADR-0012).
+#
+# Pick a phrase that names the institution, not one from its navigation or
+# its current campaign. It has to survive a redesign and die with a change
+# of owner. Every phrase below was confirmed against the live page on
+# 2026-07-24; matching is done on visible text, lowercased, with HTML
+# entities unescaped.
 #
 # Removed 2026-07-24, with the reason (ADR-0011):
 #   transparencia.cl  - a generic content blog, not the state transparency
@@ -210,46 +218,48 @@ _CL_MUNICIPALITIES: set[str] = {
 #                       commission is cnachile.cl, whose certificate chain
 #                       does not validate under httpx.
 #   fach.cl           - the Chilean Air Force, and unreachable besides.
-_KNOWN_SOURCES: dict[EntityType, list[str]] = {
-    EntityType.MUNICIPALITY: [
+_KNOWN_SOURCES: dict[EntityType, dict[str, str]] = {
+    EntityType.MUNICIPALITY: {
         # Subsecretaria de Desarrollo Regional y Administrativo.
-        'https://www.subdere.gov.cl',
+        'https://www.subdere.gov.cl': 'subdere',
         # Sistema Nacional de Informacion Municipal: per-comuna records.
-        'https://www.sinim.gov.cl',
+        'https://www.sinim.gov.cl': 'sistema nacional de información municipal',
         # Portal de Transparencia del Estado, which every municipality
         # is legally obliged to publish through.
-        'https://www.portaltransparencia.cl',
-    ],
-    EntityType.GOVERNMENT: [
+        'https://www.portaltransparencia.cl':
+            'portal de transparencia del estado',
+    },
+    EntityType.GOVERNMENT: {
         # Biblioteca del Congreso Nacional.
-        'https://www.bcn.cl',
-        'https://www.portaltransparencia.cl',
+        'https://www.bcn.cl': 'biblioteca del congreso nacional',
+        'https://www.portaltransparencia.cl':
+            'portal de transparencia del estado',
         # Ley del Lobby: named public officials (sujetos pasivos) with
         # their institution, published by statute. The closest thing Chile
         # has to a public directory of government staff.
-        'https://www.leylobby.gob.cl',
-    ],
-    EntityType.UNIVERSITY: [
+        'https://www.leylobby.gob.cl': 'ley del lobby',
+    },
+    EntityType.UNIVERSITY: {
         # MINEDUC's higher-education portal.
-        'https://www.mifuturo.cl',
+        'https://www.mifuturo.cl': 'mineduc',
         # CRUCh, the rectors' council. cruch.cl does not resolve; this is
         # the working domain.
-        'https://www.consejoderectores.cl',
+        'https://www.consejoderectores.cl': 'universidades chilenas',
         # Agencia Nacional de Investigacion y Desarrollo, where academic
         # contacts concentrate.
-        'https://www.anid.cl',
-    ],
-    EntityType.COMPANY: [
+        'https://www.anid.cl': 'anid',
+    },
+    EntityType.COMPANY: {
         # Comision para el Mercado Financiero.
-        'https://www.cmfchile.cl',
+        'https://www.cmfchile.cl': 'cmf chile',
         # Direccion de Compras y Contratacion Publica: every firm that
         # sells to the state appears here.
-        'https://www.chilecompra.cl',
+        'https://www.chilecompra.cl': 'chilecompra',
         # Sociedad de Fomento Fabril, the industrial federation.
-        'https://www.sofofa.cl',
+        'https://www.sofofa.cl': 'sofofa',
         # Camara de Comercio de Santiago.
-        'https://www.ccs.cl',
-    ],
+        'https://www.ccs.cl': 'cámara de comercio de santiago',
+    },
 }
 
 # Base scores apply to all entity types
@@ -859,8 +869,10 @@ async def discover_seeds(
         scored_links.sort(reverse=True)
         add([url for _, url in scored_links])
 
-        # Stage 4: Known high-value Chilean sources
-        known = _KNOWN_SOURCES.get(entity_type, [])
+        # Stage 4: Known high-value Chilean sources. Iterating the mapping
+        # yields its URLs; the identity phrases are for the guard in
+        # tests/test_seed_discoverer.py, not for the crawl.
+        known = _KNOWN_SOURCES.get(entity_type, {})
         for source_url in known:
             # Always add the source itself as a seed
             add([source_url])

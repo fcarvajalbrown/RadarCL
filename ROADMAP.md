@@ -172,12 +172,18 @@ scope, distributed crawling).
       de Arbitrajes, and `fach.cl` is the Air Force and unreachable. The
       replacements include `leylobby.gob.cl`, which publishes named public
       officials by statute.
-- [x] A live test under the `smtp` marker refetches every curated source, so
-      the next one to rot fails a check. `pytest -m "not smtp"` stays offline.
+- [x] A live test under the `smtp` marker refetches every curated source and
+      checks it still names its own institution, so a source that keeps
+      answering 200 while becoming something else fails too. Three of the four
+      removed sources were doing exactly that. `pytest -m "not smtp"` stays
+      offline. See [ADR-0012](docs/adr/0012-curated-sources-assert-identity.md).
 
 **Relevant ADRs:** [0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)
 (why the chain returns empty instead of raising when a source has no records,
-and why five named sources were removed).
+and why five named sources were removed),
+[0012](docs/adr/0012-curated-sources-assert-identity.md) (why reachability is
+not evidence a source is still itself, with the measurements behind the two
+detection methods weighed).
 
 ### v0.45 — PGP keyserver source
 **Status:** Not Started

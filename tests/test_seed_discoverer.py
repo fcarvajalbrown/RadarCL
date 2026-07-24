@@ -14,6 +14,8 @@ Run with:
 """
 
 import asyncio
+import html
+import re
 
 import httpx
 import pytest
@@ -238,6 +240,54 @@ def test_every_entity_type_has_curated_sources() -> None:
         assert _KNOWN_SOURCES.get(entity_type), entity_type
 
 
+def test_every_source_declares_an_identity_phrase() -> None:
+    """
+    A URL with no phrase is a source nothing can check.
+
+    The mapping shape makes this hard to get wrong, which is the point of
+    using one, but the guard is cheap and the cost of a missing phrase is
+    a source that silently goes unverified for years.
+    """
+    for entity_type, sources in _KNOWN_SOURCES.items():
+        for url, phrase in sources.items():
+            assert phrase.strip(), f"{entity_type}: {url} has no phrase"
+            assert phrase == phrase.lower(), (
+                f"{url}: {phrase!r} must be lowercase, since matching is"
+                f" done against lowercased text"
+            )
+
+
+def test_identity_phrases_are_not_trivially_generic() -> None:
+    """
+    A phrase has to be specific enough to die with a change of owner.
+
+    'contacto' or 'chile' would survive munitel.cl becoming a property
+    site, which would make the guard worse than useless: it would report
+    green while the crawler indexed apartment listings.
+    """
+    too_generic = {
+        'chile', 'contacto', 'inicio', 'gobierno', 'portal', 'sitio',
+        'home', 'noticias', 'servicios',
+    }
+    for sources in _KNOWN_SOURCES.values():
+        for url, phrase in sources.items():
+            assert phrase not in too_generic, f"{url}: {phrase!r}"
+
+
+def test_a_repeated_source_declares_one_identity() -> None:
+    """
+    portaltransparencia.cl appears under two entity types.
+
+    Two entity types disagreeing about what a URL is means one of them is
+    wrong, and the live check would then pass or fail depending on which
+    entry it happened to read.
+    """
+    seen: dict[str, str] = {}
+    for sources in _KNOWN_SOURCES.values():
+        for url, phrase in sources.items():
+            assert seen.setdefault(url, phrase) == phrase, url
+
+
 def test_removed_sources_stay_removed() -> None:
     """
     Four entries had rotted into something else and were taken out.
@@ -273,34 +323,82 @@ def test_municipality_detection_still_precedes_keywords() -> None:
 
 # ── Live checks, skipped offline
 
-@pytest.mark.smtp
-def test_curated_sources_are_reachable() -> None:
+def _visible_text(markup: str) -> str:
     """
-    Every curated source still answers.
+    Reduce a page to the text a reader would see, lowercased.
 
-    munitel.cl turned into a real-estate portal and stayed in the list
-    because nothing ever looked. This is what looks. It catches a source
-    going away, not one quietly changing what it is, so a failure here is
-    a prompt to open the page, not just to swap a URL.
+    Scripts and styles go first, because an analytics snippet or a CSS
+    rule can carry a word the page itself no longer says. Entities are
+    unescaped so a phrase can be written with its accents rather than as
+    `informaci&oacute;n`.
     """
+    stripped = re.sub(
+        r'<script.*?</script>|<style.*?</style>', '', markup,
+        flags=re.S | re.I,
+    )
+    text = html.unescape(re.sub(r'<[^>]+>', ' ', stripped))
+    return re.sub(r'\s+', ' ', text).lower()
+
+
+@pytest.mark.smtp
+def test_curated_sources_are_still_themselves() -> None:
+    """
+    Every curated source still answers, and still says who it is.
+
+    Reachability alone is not enough and this is not hypothetical:
+    munitel.cl kept answering 200 for however long it took to become a
+    real-estate portal, and a status-code check would have passed it every
+    day. So each source declares a phrase that names the institution, and
+    the phrase has to still be on the page.
+
+    The two failures are reported separately because they need different
+    responses. UNREACHABLE may be the network, and is retried once, since
+    subdere.gov.cl threw a transient RemoteProtocolError while this was
+    being written and answered on the next call. DRIFTED is never
+    transient: the page loaded and is no longer the thing it was, so go
+    read it before touching the URL.
+    """
+    async def _fetch(client, url: str):
+        resp = await client.get(url, timeout=20.0)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"HTTP {resp.status_code}")
+        return resp.text
+
     async def _check() -> list[str]:
-        broken: list[str] = []
+        problems: list[str] = []
+        sources = {
+            url: phrase
+            for mapping in _KNOWN_SOURCES.values()
+            for url, phrase in mapping.items()
+        }
         async with httpx.AsyncClient(
             follow_redirects=True,
             headers={"User-Agent": seed_discoverer._USER_AGENT},
         ) as client:
-            for url in sorted(
-                {u for urls in _KNOWN_SOURCES.values() for u in urls}
-            ):
+            for url, phrase in sorted(sources.items()):
                 try:
-                    resp = await client.get(url, timeout=20.0)
-                    if resp.status_code >= 400:
-                        broken.append(f"{url} → HTTP {resp.status_code}")
-                except Exception as exc:
-                    broken.append(f"{url} → {type(exc).__name__}")
-        return broken
+                    markup = await _fetch(client, url)
+                except Exception:
+                    try:
+                        markup = await _fetch(client, url)
+                    except Exception as exc:
+                        problems.append(
+                            f"UNREACHABLE {url}: {type(exc).__name__}: {exc}"
+                        )
+                        continue
 
-    assert asyncio.run(_check()) == []
+                if phrase not in _visible_text(markup):
+                    problems.append(
+                        f"DRIFTED {url}: the page no longer says "
+                        f"{phrase!r}. Read it before editing the URL - it "
+                        f"may have become a different organisation."
+                    )
+        return problems
+
+    problems = asyncio.run(_check())
+    # Spelled out rather than left to `== []`, because the whole value of
+    # this check is the sentence naming which source went wrong and how.
+    assert not problems, "\n" + "\n".join(problems)
 
 
 @pytest.mark.smtp

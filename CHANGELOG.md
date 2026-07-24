@@ -14,10 +14,12 @@ De las ocho fuentes chilenas que RadarCL tenía escritas a mano, cuatro
 habían dejado de ser lo que decían. munitel.cl vende departamentos.
 transparencia.cl es un blog. cna.cl es un centro de arbitrajes y no la
 comisión de acreditación, y fach.cl, que además es la Fuerza Aérea, ni
-siquiera responde. Nadie se había dado cuenta porque nada las miraba.
-Ahora hay una prueba que las vuelve a pedir una por una, y crt.sh, que
-estuvo caído unos quince minutos mientras se escribía esta versión, tiene
-por fin un reemplazo.
+siquiera responde. Tres de ellas seguían
+respondiendo 200 mientras tanto, así que revisar si la página carga no
+habría servido de nada. Ahora cada fuente declara una frase que su página
+tiene que seguir diciendo, y una prueba las va a buscar una por una.
+crt.sh, de paso, estuvo caído unos quince minutos mientras se escribía
+esta versión, y por fin tiene reemplazo.
 
 ### Añadido
 - CertSpotter como respaldo de crt.sh dentro de la primera etapa del
@@ -35,9 +37,15 @@ por fin un reemplazo.
 - `sinim.gov.cl` y `portaltransparencia.cl` para municipios,
   `consejoderectores.cl` y `anid.cl` para universidades,
   `chilecompra.cl`, `sofofa.cl` y `ccs.cl` para empresas.
-- Una prueba marcada `smtp` que vuelve a descargar cada fuente curada. El
-  marcador significa "necesita internet", así que `pytest -m "not smtp"`
-  sigue corriendo sin red.
+- Cada fuente curada declara una frase que nombra a la institución, y una
+  prueba marcada `smtp` descarga la página y falla si la frase ya no está.
+  Corrida contra la lista anterior a esta versión, marcó `munitel.cl` y
+  `cna.cl` como cambiadas y `fach.cl` como inalcanzable
+  ([ADR-0012](docs/adr/0012-curated-sources-assert-identity.md)).
+- Las dos formas de fallar se informan por separado, porque piden cosas
+  distintas: una fuente inalcanzable se reintenta una vez, una que cambió
+  de contenido no. El marcador `smtp` significa "necesita internet", así
+  que `pytest -m "not smtp"` sigue corriendo sin red.
 
 ### Eliminado
 - `transparencia.cl`, `munitel.cl`, `cna.cl` y `fach.cl`. Mandar el
