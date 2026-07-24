@@ -4,9 +4,10 @@ Seed discoverer.
 Generates 10-20 high-quality seed URLs from a single target domain
 using a cascading, self-improving pipeline:
 
-  1. crt.sh Certificate Transparency logs
+  1. Certificate Transparency logs, crt.sh then CertSpotter
      → reveals every subdomain that ever had an SSL cert issued
-     → 1 request per session, no API key, no registration
+     → 1 request per source, no API key, no registration
+     → the second source only runs if the first found nothing
 
   2. DNS verification
      → confirms which discovered subdomains are actually alive
@@ -18,7 +19,7 @@ using a cascading, self-improving pipeline:
      → scoring table adapts to entity type
 
   4. Known high-value Chilean sources per entity type
-     → transparencia.cl, munitel.cl, subdere.gov.cl etc.
+     → subdere.gov.cl, portaltransparencia.cl, leylobby.gob.cl etc.
      → always included, no user action required
 
   5. DuckDuckGo search (optional)
@@ -33,10 +34,30 @@ import asyncio
 import re
 import socket
 from enum import Enum, auto
+from typing import Awaitable, Callable
 from urllib.parse import urljoin, urlparse, quote
 
 import httpx
 from bs4 import BeautifulSoup
+
+
+class CTUnavailable(Exception):
+    """
+    No Certificate Transparency source could be reached.
+
+    Every source errored, so nothing is known about the domain's
+    subdomains. Distinct from a source answering with no records, which is
+    an answer - see ADR-0011.
+    """
+
+
+# Sent by every request this module makes. Two of the curated sources in
+# _KNOWN_SOURCES reject a bare non-browser token with 403.
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
 
 
 # ── Entity types
@@ -58,7 +79,7 @@ _ENTITY_PATTERNS: dict[EntityType, list[str]] = {
         'gob', 'gov', 'minsal', 'minedu', 'servel',
         'sii', 'registro', 'seremi', 'intendencia',
         'ministerio', 'subsecretaria', 'dipres',
-        'contraloria', 'senado', 'camara',
+        'contraloria', 'senado', 'camara', 'bcn',
     ],
     EntityType.UNIVERSITY: [
         'edu', 'univ', 'uc', 'udp', 'usach', 'uach',
@@ -172,25 +193,62 @@ _CL_MUNICIPALITIES: set[str] = {
     "yungay.cl", "munizapallar.cl",
 }
 
-# Known high-value Chilean sources per entity type
-# These are always included regardless of what other stages find
+# Known high-value Chilean sources per entity type. Always included
+# regardless of what other stages find - this curation, not source volume,
+# is what the PRD claims as the difference from a generic OSINT tool.
+#
+# Every entry below was fetched on 2026-07-24 and confirmed to be the
+# organisation it claims to be. That check is not decoration: four earlier
+# entries had rotted into something else entirely and nobody noticed.
+# `tests/test_seed_discoverer.py` re-runs it under the `smtp` marker.
+#
+# Removed 2026-07-24, with the reason (ADR-0011):
+#   transparencia.cl  - a generic content blog, not the state transparency
+#                       portal. That is portaltransparencia.cl.
+#   munitel.cl        - now a real-estate listings site.
+#   cna.cl            - the Centro Nacional de Arbitrajes. The accreditation
+#                       commission is cnachile.cl, whose certificate chain
+#                       does not validate under httpx.
+#   fach.cl           - the Chilean Air Force, and unreachable besides.
 _KNOWN_SOURCES: dict[EntityType, list[str]] = {
     EntityType.MUNICIPALITY: [
-        'https://www.transparencia.cl',
-        'https://www.munitel.cl',
+        # Subsecretaria de Desarrollo Regional y Administrativo.
         'https://www.subdere.gov.cl',
+        # Sistema Nacional de Informacion Municipal: per-comuna records.
+        'https://www.sinim.gov.cl',
+        # Portal de Transparencia del Estado, which every municipality
+        # is legally obliged to publish through.
+        'https://www.portaltransparencia.cl',
     ],
     EntityType.GOVERNMENT: [
-        'https://www.transparencia.cl',
+        # Biblioteca del Congreso Nacional.
         'https://www.bcn.cl',
+        'https://www.portaltransparencia.cl',
+        # Ley del Lobby: named public officials (sujetos pasivos) with
+        # their institution, published by statute. The closest thing Chile
+        # has to a public directory of government staff.
+        'https://www.leylobby.gob.cl',
     ],
     EntityType.UNIVERSITY: [
-        'https://www.cna.cl',
+        # MINEDUC's higher-education portal.
         'https://www.mifuturo.cl',
+        # CRUCh, the rectors' council. cruch.cl does not resolve; this is
+        # the working domain.
+        'https://www.consejoderectores.cl',
+        # Agencia Nacional de Investigacion y Desarrollo, where academic
+        # contacts concentrate.
+        'https://www.anid.cl',
     ],
     EntityType.COMPANY: [
+        # Comision para el Mercado Financiero.
         'https://www.cmfchile.cl',
-        'https://www.fach.cl',
+        # Direccion de Compras y Contratacion Publica: every firm that
+        # sells to the state appears here.
+        'https://www.chilecompra.cl',
+        # Sociedad de Fomento Fabril, the industrial federation.
+        'https://www.sofofa.cl',
+        # Camara de Comercio de Santiago.
+        'https://www.ccs.cl',
     ],
 }
 
@@ -356,6 +414,38 @@ def _score_link(href: str, entity_type: EntityType) -> int:
     return score
 
 
+# crt.sh answers a cold query in around a minute and a cached one in about
+# a second, so no timeout short of two minutes reliably covers it. Twenty
+# seconds is chosen deliberately: failing over to a source that answers in
+# under a second beats waiting out a slow one (ADR-0011).
+_CRTSH_TIMEOUT = 20.0
+
+_CERTSPOTTER_ENDPOINT = 'https://api.certspotter.com/v1/issuances'
+_CERTSPOTTER_TIMEOUT = 10.0
+
+
+def _collect_hostnames(
+    names: list[str],
+    domain: str,
+    seen: set[str],
+    out: list[str],
+) -> None:
+    """
+    Keep the hostnames under `domain`, deduplicated, in first-seen order.
+
+    Wildcards are dropped: `*.nunoa.cl` is not a host anything can be
+    fetched from. Both Certificate Transparency sources need exactly this
+    filtering, they just arrive at the raw names differently.
+    """
+    for name in names:
+        name = name.strip().lower()
+        if '*' in name or not name.endswith(domain):
+            continue
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+
+
 async def _crtsh_subdomains(
     domain: str,
     client: httpx.AsyncClient,
@@ -363,8 +453,9 @@ async def _crtsh_subdomains(
     """
     Query crt.sh Certificate Transparency logs for subdomains.
 
-    One request per session. Returns every subdomain that ever
-    had an SSL certificate issued.
+    One request. Returns every subdomain that ever had an SSL certificate
+    issued, expired ones included, which is why this source is tried first
+    despite being the slower of the two.
 
     Parameters
     ----------
@@ -375,31 +466,156 @@ async def _crtsh_subdomains(
     Returns
     -------
     list[str]
-        Unique subdomain hostnames.
+        Unique subdomain hostnames. Empty if crt.sh has no records.
+
+    Raises
+    ------
+    CTUnavailable
+        Non-200 response, timeout, or unparseable body.
     """
-    subdomains: list[str] = []
-    seen: set[str] = set()
+    url = f"https://crt.sh/?q=%.{domain}&output=json"
 
     try:
-        url = f"https://crt.sh/?q=%.{domain}&output=json"
-        resp = await client.get(url, timeout=30.0)
+        resp = await client.get(url, timeout=_CRTSH_TIMEOUT)
         if resp.status_code != 200:
-            return []
-
+            raise CTUnavailable(f"crt.sh HTTP {resp.status_code}")
         records = resp.json()
-        for record in records:
-            for name in record.get('name_value', '').splitlines():
-                name = name.strip().lower()
-                if '*' in name or not name.endswith(domain):
-                    continue
-                if name not in seen:
-                    seen.add(name)
-                    subdomains.append(name)
+    except CTUnavailable:
+        raise
+    except Exception as exc:
+        raise CTUnavailable(f"crt.sh {type(exc).__name__}: {exc}") from exc
 
-    except Exception:
-        pass
+    subdomains: list[str] = []
+    seen: set[str] = set()
+    for record in records:
+        _collect_hostnames(
+            record.get('name_value', '').splitlines(), domain, seen, subdomains
+        )
 
     return subdomains
+
+
+async def _certspotter_subdomains(
+    domain: str,
+    client: httpx.AsyncClient,
+) -> list[str]:
+    """
+    Query SSLMate's Cert Spotter for subdomains.
+
+    The fallback for crt.sh, and a narrower one: the free tier serves
+    unexpired certificates only, so it finds fewer hosts. Measured on
+    `nunoa.cl`, four names against crt.sh's thirteen. Fewer is still the
+    whole point, since the alternative during a crt.sh outage is none.
+
+    No API key. SSLMate allows ten full-domain queries an hour
+    unauthenticated and answers a further one with 429, which this treats
+    like any other failure rather than waiting out the `Retry-After`.
+
+    One request, no pagination: a page holds 100 issuances, which came to
+    351 distinct hostnames for `uchile.cl`, well past the 10-20 seeds
+    `discover_seeds` keeps.
+
+    Parameters
+    ----------
+    domain : str
+        Bare domain e.g. 'nunoa.cl'.
+    client : httpx.AsyncClient
+
+    Returns
+    -------
+    list[str]
+        Unique subdomain hostnames. Empty if Cert Spotter has no records.
+
+    Raises
+    ------
+    CTUnavailable
+        Non-200 response (429 included), timeout, or unparseable body.
+    """
+    try:
+        resp = await client.get(
+            _CERTSPOTTER_ENDPOINT,
+            params={
+                'domain': domain,
+                'include_subdomains': 'true',
+                'expand': 'dns_names',
+            },
+            timeout=_CERTSPOTTER_TIMEOUT,
+        )
+        if resp.status_code != 200:
+            raise CTUnavailable(f"certspotter HTTP {resp.status_code}")
+        issuances = resp.json()
+    except CTUnavailable:
+        raise
+    except Exception as exc:
+        raise CTUnavailable(
+            f"certspotter {type(exc).__name__}: {exc}"
+        ) from exc
+
+    subdomains: list[str] = []
+    seen: set[str] = set()
+    for issuance in issuances:
+        _collect_hostnames(
+            issuance.get('dns_names') or [], domain, seen, subdomains
+        )
+
+    return subdomains
+
+
+async def _ct_subdomains(
+    domain: str,
+    client: httpx.AsyncClient,
+) -> list[str]:
+    """
+    Return subdomains from the first Certificate Transparency source that
+    has any.
+
+    Sources are tried in order and the chain stops at the first non-empty
+    result. A source that answers with no records has still answered, so
+    the chain returns empty rather than raising - the same distinction
+    `dns_lookup.resolve_mx` draws between a domain that does not exist and
+    a resolver that could not say (ADR-0009, ADR-0011).
+
+    Parameters
+    ----------
+    domain : str
+        Bare domain e.g. 'nunoa.cl'.
+    client : httpx.AsyncClient
+
+    Returns
+    -------
+    list[str]
+        Unique subdomain hostnames, possibly empty.
+
+    Raises
+    ------
+    CTUnavailable
+        Every source errored. Nothing is known.
+    """
+    failures: list[str] = []
+    answered = False
+
+    # Ordered by yield, not by speed. Looked up through module globals on
+    # each call rather than bound once, so each source stays individually
+    # replaceable in tests.
+    sources: tuple[
+        Callable[[str, httpx.AsyncClient], Awaitable[list[str]]], ...
+    ] = (_crtsh_subdomains, _certspotter_subdomains)
+
+    for source in sources:
+        try:
+            found = await source(domain, client)
+        except CTUnavailable as exc:
+            failures.append(str(exc))
+            continue
+
+        answered = True
+        if found:
+            return found
+
+    if not answered:
+        raise CTUnavailable('; '.join(failures))
+
+    return []
 
 
 async def _verify_subdomains(
@@ -553,13 +769,6 @@ async def _duckduckgo_seeds(
             resp = await client.get(
                 f"https://html.duckduckgo.com/html/?q={quote(query)}",
                 timeout=10.0,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120.0.0.0 Safari/537.36"
-                    )
-                },
             )
             for match in url_re.finditer(resp.text):
                 url = match.group()
@@ -581,10 +790,10 @@ async def discover_seeds(
 
     Pipeline
     --------
-    1. crt.sh → real subdomains from SSL certificate logs
+    1. Certificate Transparency → real subdomains, crt.sh then CertSpotter
     2. DNS verification → confirm which subdomains are alive
     3. Semantic scoring → score internal links on live pages
-    4. Known Chilean sources → transparencia.cl, munitel.cl etc.
+    4. Known Chilean sources → subdere.gov.cl, portaltransparencia.cl etc.
     5. DuckDuckGo (optional) → targeted queries using live subdomains
 
     Seeds can be on any domain — the crawler's email filter
@@ -619,11 +828,16 @@ async def discover_seeds(
 
     async with httpx.AsyncClient(
         follow_redirects=True,
-        headers={"User-Agent": "RadarCL/0.1"},
+        headers={"User-Agent": _USER_AGENT},
     ) as client:
 
-        # Stage 1: crt.sh — get real subdomains
-        subdomains = await _crtsh_subdomains(domain, client)
+        # Stage 1: Certificate Transparency — get real subdomains.
+        # The stage as a whole still fails silently so stage 2 runs; the
+        # crt.sh → CertSpotter fallback happens inside it.
+        try:
+            subdomains = await _ct_subdomains(domain, client)
+        except CTUnavailable:
+            subdomains = []
 
         # Always include base and www
         for base in [domain, f"www.{domain}"]:
