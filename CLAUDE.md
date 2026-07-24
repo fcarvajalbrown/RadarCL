@@ -22,7 +22,7 @@ python -m app.main
 
 # Tests
 pytest                            # full suite
-pytest -m "not smtp"              # skip tests needing a live internet SMTP connection
+pytest -m "not smtp"              # skip tests needing a live internet connection (DNS or SMTP)
 pytest tests/test_extractor.py -v # single file
 pytest tests/test_verifier.py::test_no_smtp_returns_unknown -v  # single test
 ```

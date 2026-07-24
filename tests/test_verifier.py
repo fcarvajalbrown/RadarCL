@@ -3,7 +3,8 @@ Unit tests for the email verifier.
 
 Run with: pytest tests/test_verifier.py -v
 
-Note: SMTP tests require a live internet connection.
+Note: tests marked `smtp` require a live internet connection — either a
+      DNS MX lookup, an SMTP handshake, or both.
       Run with: pytest -m "not smtp" to skip them offline.
 """
 
@@ -39,6 +40,7 @@ def test_valid_syntax_passes() -> None:
     assert result.syntax_ok is True
 
 
+@pytest.mark.smtp
 def test_no_smtp_returns_unknown() -> None:
     """With smtp_enabled=False and valid MX domain, status should be UNKNOWN."""
     result = verify("user@bcn.cl", smtp_enabled=False)
@@ -48,6 +50,7 @@ def test_no_smtp_returns_unknown() -> None:
     assert result.smtp_ok is None
 
 
+@pytest.mark.smtp
 def test_invalid_mx_domain() -> None:
     """Domain with no MX records should return INVALID."""
     result = verify("user@thisdoesnotexist123456.cl", smtp_enabled=False)
@@ -55,6 +58,7 @@ def test_invalid_mx_domain() -> None:
     assert result.mx_ok is False
 
 
+@pytest.mark.smtp
 def test_error_message_populated_on_failure() -> None:
     """Failed verification should populate the error field."""
     result = verify("user@thisdoesnotexist123456.cl", smtp_enabled=False)
