@@ -1,0 +1,10 @@
+# Dependencies for app/core/ and app/cli.py only - no GUI stack.
+# Use this for headless, scripted, or library use:
+#   pip install -r requirements-core.txt
+# The full requirements.txt additionally installs PySide6 and PyInstaller,
+# which only the desktop app needs.
+httpx[http2]>=0.27.0
+beautifulsoup4>=4.12.0
+lxml>=5.2.0
+dnspython>=2.6.0
+psutil>=5.9.0

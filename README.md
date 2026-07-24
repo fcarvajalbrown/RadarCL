@@ -3,9 +3,9 @@
 
 # RadarCL
 
-![versión](https://img.shields.io/badge/versi%C3%B3n-0.2.0-blue)
+![versión](https://img.shields.io/badge/versi%C3%B3n-0.3.0-blue)
 ![licencia](https://img.shields.io/badge/licencia-Apache%202.0-green)
-![plataforma](https://img.shields.io/badge/plataforma-Windows-slate)
+![plataforma](https://img.shields.io/badge/plataforma-Windows%20(GUI)%20%7C%20CLI%20sin%20Qt-slate)
 ![tecnología](https://img.shields.io/badge/tecnolog%C3%ADa-Python%20%7C%20PySide6-blue)
 ![alcance](https://img.shields.io/badge/alcance-solo%20.cl-orange)
 </div>
@@ -37,6 +37,64 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
+## Uso desde la línea de comandos
+
+La CLI no depende de Qt, así que sirve para scripts, tareas programadas y
+máquinas sin entorno gráfico. Instala solo lo que necesita el núcleo:
+
+```bash
+pip install -r requirements-core.txt
+```
+
+Tres subcomandos:
+
+```bash
+# Solo descubrir semillas, sin rastrear
+python -m app.cli discover nunoa.cl
+
+# Pipeline completo: descubre, rastrea, extrae y verifica
+python -m app.cli scan nunoa.cl --pattern "{first}.{last}" --output correos.csv
+
+# Verificar una lista que ya tienes
+python -m app.cli verify --input correos.txt --no-smtp
+```
+
+Los datos salen por stdout y los mensajes de progreso por stderr, así que el
+resultado se puede encadenar directamente:
+
+```bash
+python -m app.cli scan nunoa.cl --quiet | cut -f1 > direcciones.txt
+```
+
+`scan` ajusta concurrencia, retardo y límite de páginas según el hardware que
+detecta. Las opciones `--concurrency`, `--delay` y `--max-pages` lo
+sobrescriben. Cada ejecución queda registrada en `~/.radarcl/sessions.db`
+salvo que uses `--no-session`. El listado completo de opciones está en
+`python -m app.cli --help`.
+
+## Uso como biblioteca
+
+`app/core/` es Python/asyncio puro y se puede importar por separado, sin la
+interfaz gráfica:
+
+```python
+import asyncio
+from app.core.pipeline import crawl_and_extract, verify_all
+from app.core.seed_discoverer import discover_seeds
+
+async def main():
+    semillas = await discover_seeds("nunoa.cl")
+    hallazgos = [d async for d in crawl_and_extract(semillas, "nunoa.cl")]
+    for registro in verify_all([(d.email, d.source_url) for d in hallazgos]):
+        print(registro["email"], registro["status"])
+
+asyncio.run(main())
+```
+
+Los módulos del núcleo son independientes entre sí: `seed_discoverer`,
+`crawler`, `extractor`, `pattern_generator` y `verifier` funcionan sueltos, y
+`pipeline` solo los encadena.
+
 ## Tecnologías
 - Interfaz gráfica: PySide6 (Qt6)
 - HTTP: httpx + BeautifulSoup4
@@ -46,7 +104,15 @@ python -m app.main
 
 ## Historial de versiones
 
-### v0.2.0 (actual)
+### v0.3.0 (actual)
+- Modo CLI sin Qt (`python -m app.cli`) con tres subcomandos: `discover`,
+  `scan` y `verify`
+- `app/core/` documentado y utilizable como biblioteca independiente
+- `requirements-core.txt` para instalar el núcleo sin PySide6
+- Clasificación SMTP por clase de código: 250 válido, 5xx inválido,
+  4xx y 252 desconocido
+
+### v0.2.0
 - Descubrimiento automático de semillas vía crt.sh, sondeo DNS y
   puntuación semántica
 - Rastreo sensible al tipo de entidad (municipalidad, gobierno,

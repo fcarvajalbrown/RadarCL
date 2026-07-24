@@ -20,6 +20,12 @@ pip install -r requirements.txt
 # Run the app
 python -m app.main
 
+# Run the CLI (headless, no Qt)
+python -m app.cli --help
+python -m app.cli discover nunoa.cl
+python -m app.cli scan nunoa.cl --pattern "{first}.{last}" --output out.csv
+python -m app.cli verify --input emails.txt --no-smtp
+
 # Tests
 pytest                            # full suite
 pytest -m "not smtp"              # skip tests needing a live internet connection (DNS or SMTP)
@@ -43,7 +49,9 @@ translatable prose.
 
 ## Architecture
 
-**Strict layering — `app/core/` has zero Qt imports.** All scraping/verification logic
+**Strict layering — `app/core/` and `app/cli.py` have zero Qt imports.**
+This is enforced by `tests/test_cli.py::test_importing_cli_does_not_load_qt`,
+not just by convention. All scraping/verification logic
 lives there as plain async functions and dataclasses, independently testable and reusable
 outside the GUI. `app/workers/` contains `QThread` subclasses that are the *only* place
 Qt and `core` logic meet — each wraps a `core` async routine and re-emits its results as
@@ -80,6 +88,18 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   last 10 sessions on each new session creation.
 - `app/core/exporter.py` — writes only VALID emails to CSV, auto-exported to
   `~/Desktop/RadarCL-YYYY-MM-DD.csv` after verification finishes.
+- `app/core/pipeline.py` — Qt-free orchestration of the two main loops:
+  `crawl_and_extract()` (crawl → extract → pattern-generate, deduplicated,
+  yielding `Discovery` objects) and `verify_all()` (verify → record dicts).
+  Both `app/cli.py` and the `app/workers/` QThreads consume these, so each
+  loop has exactly one implementation. `should_stop` is polled per page,
+  not per result, so a Stop still lands on pages containing no addresses.
+- `app/cli.py` — headless entry point (`python -m app.cli`) with three
+  subcommands: `discover`, `scan`, `verify`. stdout carries data only
+  (TSV: email, status, source) so it pipes; Spanish progress goes to
+  stderr. Never triggers the Desktop auto-export, since
+  `exporter.default_export_path()` creates `~/Desktop` — the CLI writes a
+  CSV only on an explicit `--output`.
 
 **Signal flow**: `CrawlerWorker`/`VerifierWorker` emit low-level signals (per-email,
 per-page, progress) → `ControlPanel` owns worker lifecycle (start/pause/stop/force-quit),

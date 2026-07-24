@@ -77,21 +77,31 @@ cheap/high-credibility wins before the two genuinely large items (`.com`
 scope, distributed crawling).
 
 ### v0.25 — Foundation / quality bar
-**Status:** Not Started
+**Status:** In Progress — verifier fix done; CI and CONTRIBUTING.md remain.
 - [ ] CI pipeline: GitHub Actions running `pytest -m "not smtp"` on push/PR.
-- [ ] Verifier fix: a non-250 SMTP response with no exception currently sets
+- [x] Verifier fix: a non-250 SMTP response with no exception set
       `VStatus.INVALID` in `app/core/verifier.py`, contradicting
-      [ADR-0004](docs/adr/0004-verification-staging-unknown-not-invalid.md)'s
-      own rule that only syntax/MX failures should be INVALID.
+      [ADR-0004](docs/adr/0004-verification-staging-unknown-not-invalid.md).
+      Now classified by reply-code class — 250 valid, 5xx invalid, 4xx and
+      252 unknown — per
+      [ADR-0007](docs/adr/0007-smtp-response-classification.md), which
+      supersedes 0004.
+- [x] Test markers: three verifier tests did live DNS lookups without the
+      `smtp` marker, so `pytest -m "not smtp"` was not actually offline.
+      Marker widened to mean live internet generally; offline suite now
+      runs in ~5s instead of ~20s.
 - [ ] `CONTRIBUTING.md` + issue/PR templates.
 
 ### v0.30 — Core-as-library / CLI mode
-**Status:** Not Started
-- [ ] `app/cli.py`: headless entry point driving `app/core/` directly, no Qt
-      — enables scripting, cron jobs, and non-Windows use without touching
-      the GUI stack.
-- [ ] README/docs reframe `app/core/` as independently importable, not just
-      GUI plumbing.
+**Status:** Done
+- [x] `app/cli.py`: headless entry point driving `app/core/` directly, no Qt
+      — three subcommands (`discover`, `scan`, `verify`), stdout for data
+      and stderr for Spanish progress. Enforced Qt-free by
+      `tests/test_cli.py`.
+- [x] README/docs reframe `app/core/` as independently importable, not just
+      GUI plumbing — plus `app/core/pipeline.py` (shared by the CLI and the
+      Qt workers) and `requirements-core.txt` for installing the core
+      without PySide6.
 
 **Relevant ADRs:** [0002](docs/adr/0002-async-core-qthread-worker-bridge.md)
 (the Qt-free `core` boundary this mode is built on).
@@ -130,6 +140,13 @@ scope, distributed crawling).
       build a real third-party verification API integration, or close it
       formally with an ADR stating it's not planned. Currently an
       undecided placeholder, not a real deferred item.
+- [ ] Accept-all / catch-all domain detection: Yahoo, AOL, mail.com and
+      hardened Exchange estates return `250` to every `RCPT TO` as an
+      anti-harvesting measure, so a 250 is not evidence the mailbox exists
+      and the current code reports those as VALID. Needs a second probe to
+      a random address at the same domain, a fourth status bucket, and its
+      own ADR. Surfaced by the research behind
+      [ADR-0007](docs/adr/0007-smtp-response-classification.md).
 
 ### v0.65 — Distributed crawling, part 1: job distribution
 **Status:** Not Started
