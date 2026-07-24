@@ -152,11 +152,32 @@ scope, distributed crawling).
 (why a CSV and a JSON of the same run legitimately disagree on row count).
 
 ### v0.40 — Source breadth (Chile-curated)
-**Status:** Not Started
-- [ ] CertSpotter/MerkleMap as crt.sh fallbacks in `seed_discoverer.py`'s
-      `_crtsh_subdomains` (currently fails silently with no fallback).
-- [ ] Expand curated Chile-specific sources beyond what's hardcoded today
-      (`datos.gob.cl`, BCN, ChileCompra).
+**Status:** Done
+- [x] CertSpotter as a crt.sh fallback inside `seed_discoverer.py`'s stage 1,
+      which previously failed silently with no fallback at all. `_ct_subdomains`
+      tries each source in order and stops at the first non-empty result;
+      only an all-sources failure raises, and `discover_seeds` catches that so
+      the stage still fails silently as a stage. Timeouts cut to 20s and 10s
+      after measuring crt.sh at 60-77s cold and CertSpotter at 0.6s.
+- [x] **MerkleMap rejected, do not retry it.** `api.merklemap.com/v1/search`
+      returns 401 without a key and the only plan is EUR 49/month with no free
+      API tier. `rapiddns.io` was measured as a possible third source (8 names
+      for `nunoa.cl`, five absent from crt.sh) and deferred: it is HTML
+      scraping with no API contract. See
+      [ADR-0011](docs/adr/0011-ct-fallback-and-source-hygiene.md).
+- [x] Curated Chile-specific sources replaced rather than extended. Fetching
+      all eight hardcoded entries found five wrong or dead:
+      `transparencia.cl` is a content blog rather than the state portal,
+      `munitel.cl` is now a real-estate site, `cna.cl` is the Centro Nacional
+      de Arbitrajes, and `fach.cl` is the Air Force and unreachable. The
+      replacements include `leylobby.gob.cl`, which publishes named public
+      officials by statute.
+- [x] A live test under the `smtp` marker refetches every curated source, so
+      the next one to rot fails a check. `pytest -m "not smtp"` stays offline.
+
+**Relevant ADRs:** [0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)
+(why the chain returns empty instead of raising when a source has no records,
+and why five named sources were removed).
 
 ### v0.45 — PGP keyserver source
 **Status:** Not Started

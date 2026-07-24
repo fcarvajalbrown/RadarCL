@@ -70,10 +70,15 @@ should grow toward. Three traits worth naming directly:
   single-purpose seed discovery, but the source list itself (Censys,
   SecurityTrails, Netlas, etc.) is a useful reference for what
   `_KNOWN_SOURCES` in `seed_discoverer.py` could eventually expand to.
-- **CertSpotter / MerkleMap** — alternative Certificate Transparency query
-  endpoints to crt.sh, useful as a fallback if crt.sh itself is
-  unreachable/rate-limited during a session (`_crtsh_subdomains` currently
-  fails silently and just returns nothing in that case).
+- **CertSpotter / MerkleMap** — listed here in the original survey as
+  interchangeable Certificate Transparency alternatives to crt.sh. Measuring
+  them on 2026-07-24 for v0.40 showed they are not comparable. CertSpotter
+  answers unauthenticated in 0.6s (ten full-domain queries an hour, then 429)
+  and is now the fallback; MerkleMap returns 401 without an API key and costs
+  EUR 49/month with no free tier, so it was rejected. CertSpotter's free tier
+  also serves unexpired certificates only, which is why it found 4 hostnames
+  for `nunoa.cl` against crt.sh's 13. See
+  [ADR-0011](../adr/0011-ct-fallback-and-source-hygiene.md).
 
 ## Email harvesting and verification (inspiration, not the model)
 

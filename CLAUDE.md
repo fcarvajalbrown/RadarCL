@@ -151,13 +151,22 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
 `core` directly. Preserve this separation when adding features.
 
 - `app/core/seed_discoverer.py` — turns a bare domain (e.g. `nunoa.cl`) into 10-20 seed
-  URLs via a cascading pipeline: crt.sh certificate-transparency subdomains → DNS/HTTP
-  liveness check → entity-aware semantic link scoring → hardcoded high-value Chilean
-  sources (transparencia.cl, munitel.cl, etc.) → optional DuckDuckGo search. Each stage
+  URLs via a cascading pipeline: certificate-transparency subdomains → DNS/HTTP
+  liveness check → entity-aware semantic link scoring → curated high-value Chilean
+  sources (subdere.gov.cl, portaltransparencia.cl, leylobby.gob.cl, etc.) → optional
+  DuckDuckGo search. Each stage
   fails silently so the next still runs. Entity type (municipality/government/
   university/company) is auto-detected and changes which link-scoring table and known
   sources are used — municipality detection first checks the hardcoded
   `_CL_MUNICIPALITIES` set (Lupa Municipal 2026 list) before falling back to keyword match.
+  Stage 1 is itself a chain: `_ct_subdomains` tries crt.sh then CertSpotter and stops at
+  the first *non-empty* result, since a source answering with no records has answered.
+  Only an all-sources failure raises `CTUnavailable`, which `discover_seeds` catches
+  ([ADR-0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)) — the fallback lives
+  inside stage 1 and is not a new stage. **`_KNOWN_SOURCES` rots**: four entries had
+  silently become a real-estate portal, a content blog, an arbitration centre and an
+  unreachable host. Never add an entry without fetching it first, and keep the
+  `smtp`-marked test in `tests/test_seed_discoverer.py` that refetches them all.
 - `app/core/crawler.py` — async `httpx` crawler. Phase 1 restricts link-following to
   `.cl` domains; Phase 2 (optional, activated after `phase1_timeout`) follows external
   links too, but the email filter (`is_cl_domain`) always stays `.cl`-only regardless of
