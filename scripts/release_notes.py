@@ -101,6 +101,14 @@ def main(argv: list[str] | None = None) -> int:
 
     tag = args.tag or f'v{args.version}'
     text = CHANGELOG.read_text(encoding='utf-8')
+
+    # Windows picks the locale encoding for a redirected stdout, so
+    # `release_notes.py 0.4.0 > notes.md` wrote cp1252 and every accented
+    # character reached the release page as mojibake. The notes are
+    # Spanish, so that is most of them.
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', newline='')
+
     sys.stdout.write(absolutize(unwrap(extract(text, args.version)), tag))
     return 0
 
