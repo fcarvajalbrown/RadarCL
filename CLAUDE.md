@@ -31,7 +31,18 @@ pytest                            # full suite
 pytest -m "not smtp"              # skip tests needing a live internet connection (DNS or SMTP)
 pytest tests/test_extractor.py -v # single file
 pytest tests/test_verifier.py::test_no_smtp_returns_unknown -v  # single test
+
+# Vendored dependencies (ADR-0008)
+python scripts/vendor.py            # rebuild vendor/ + requirements-core.lock
+python scripts/vendor.py --check    # verify vendor/ against SHA256SUMS.txt
+pip install --no-index --find-links=vendor --require-hashes -r requirements-core.lock
 ```
+
+**Dependency changes require two steps**: bump the range in
+`requirements-core.txt`, then rerun `python scripts/vendor.py` and commit
+the regenerated `vendor/`, `SHA256SUMS.txt` and `requirements-core.lock`.
+A `vendor/` that disagrees with `requirements-core.txt` is a real failure
+mode — `--check` verifies integrity, not currency.
 
 Packaging (not part of normal dev loop): PyInstaller builds `dist/RadarCL.exe` (no
 `.spec` file is committed — generate one with `pyinstaller` before building); the Inno

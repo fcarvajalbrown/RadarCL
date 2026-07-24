@@ -90,6 +90,12 @@ scope, distributed crawling).
       `smtp` marker, so `pytest -m "not smtp"` was not actually offline.
       Marker widened to mean live internet generally; offline suite now
       runs in ~5s instead of ~20s.
+- [x] Dependency vendoring: core wheels committed to `vendor/` with a
+      SHA-256 manifest and a hash-pinned `requirements-core.lock`, so a
+      clean checkout installs with no network and survives a package being
+      removed from PyPI. GUI deps hash-pinned but not vendored —
+      `pyside6_addons` is 169 MB, over GitHub's 100 MiB per-file limit. See
+      [ADR-0008](docs/adr/0008-vendored-core-dependencies.md).
 - [ ] `CONTRIBUTING.md` + issue/PR templates.
 
 ### v0.30 — Core-as-library / CLI mode

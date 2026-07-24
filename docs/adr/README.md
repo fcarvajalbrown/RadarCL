@@ -9,3 +9,4 @@
 | [0005](0005-hardware-aware-auto-tuning.md) | Hardware-aware auto-tuning of crawl settings | Accepted |
 | [0006](0006-sqlite-session-store-last-10-pruning.md) | SQLite session store with last-10 pruning | Accepted |
 | [0007](0007-smtp-response-classification.md) | SMTP response classification by reply-code class | Accepted |
+| [0008](0008-vendored-core-dependencies.md) | Vendored core dependencies, hash-pinned GUI dependencies | Accepted |

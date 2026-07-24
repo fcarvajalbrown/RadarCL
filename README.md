@@ -72,6 +72,25 @@ sobrescriben. Cada ejecución queda registrada en `~/.radarcl/sessions.db`
 salvo que uses `--no-session`. El listado completo de opciones está en
 `python -m app.cli --help`.
 
+## Instalación sin conexión
+
+Las dependencias del núcleo vienen incluidas en `vendor/` como wheels, así
+que el proyecto sigue instalándose aunque un paquete desaparezca de PyPI:
+
+```bash
+pip install --no-index --find-links=vendor --require-hashes -r requirements-core.lock
+```
+
+Eso instala las 15 dependencias del núcleo sin tocar la red. `vendor/`
+también trae los paquetes fuente de `lxml` y `psutil` para plataformas
+distintas de Windows x64, que necesitan un compilador de C. Para verificar
+que nada se alteró: `python scripts/vendor.py --check`.
+
+PySide6 no está incluido porque uno de sus archivos pesa 169 MB y GitHub no
+acepta archivos sobre 100 MiB. Sus versiones quedan fijadas por hash en
+`requirements-gui.lock`. El razonamiento completo está en
+[ADR-0008](docs/adr/0008-vendored-core-dependencies.md).
+
 ## Uso como biblioteca
 
 `app/core/` es Python/asyncio puro y se puede importar por separado, sin la
