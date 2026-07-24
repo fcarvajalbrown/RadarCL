@@ -42,7 +42,7 @@ python -m app.main
 - HTTP: httpx + BeautifulSoup4
 - Verificación: dnspython + smtplib
 - Almacenamiento: SQLite (stdlib)
-- Empaquetado: PyInstaller + Nuitka
+- Empaquetado: PyInstaller
 
 ## Historial de versiones
 
