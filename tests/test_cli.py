@@ -5,6 +5,7 @@ All offline: no network, no subprocess. Run with: pytest tests/test_cli.py -v
 """
 
 import io
+import json
 import sys
 
 import pytest
@@ -197,6 +198,71 @@ def test_verify_writes_csv_when_output_given(monkeypatch, tmp_path) -> None:
         "verify", "--input", str(path), "--output", str(out), "--no-session"
     ]) == 0
     assert "a@x.cl" in out.read_text(encoding="utf-8")
+
+
+def _one_of_each(monkeypatch) -> None:
+    """Stub verify_all with one result per status."""
+    monkeypatch.setattr(
+        cli,
+        "verify_all",
+        lambda emails, **kw: iter([
+            {"email": "a@x.cl", "source": "https://x.cl",
+             "status": "valid", "error": ""},
+            {"email": "b@x.cl", "source": "https://x.cl",
+             "status": "unknown", "error": "SMTP RCPT code 450"},
+        ]),
+    )
+
+
+def test_verify_infers_json_from_the_extension(monkeypatch, tmp_path) -> None:
+    """--output out.json needs no second flag, and keeps every status."""
+    path = tmp_path / "emails.txt"
+    path.write_text("a@x.cl\nb@x.cl\n", encoding="utf-8")
+    out = tmp_path / "out.json"
+    _one_of_each(monkeypatch)
+
+    assert cli.main([
+        "verify", "--input", str(path), "--output", str(out), "--no-session"
+    ]) == 0
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert [r["email"] for r in payload["results"]] == ["a@x.cl", "b@x.cl"]
+
+
+def test_verify_format_flag_overrides_extension(monkeypatch, tmp_path) -> None:
+    """--format html wins over an extension that says otherwise."""
+    path = tmp_path / "emails.txt"
+    path.write_text("a@x.cl\n", encoding="utf-8")
+    out = tmp_path / "raro.txt"
+    _one_of_each(monkeypatch)
+
+    assert cli.main([
+        "verify", "--input", str(path), "--output", str(out),
+        "--format", "html", "--no-session",
+    ]) == 0
+    assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
+
+
+def test_bad_output_extension_fails_before_any_work(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    """An unusable --output must not cost a full verification run first."""
+    path = tmp_path / "emails.txt"
+    path.write_text("a@x.cl\n", encoding="utf-8")
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("verification must not start")
+
+    monkeypatch.setattr(cli, "verify_all", _boom)
+    monkeypatch.setattr(cli, "read_email_list", _boom)
+
+    code = cli.main([
+        "verify", "--input", str(path), "--output",
+        str(tmp_path / "out.txt"), "--no-session",
+    ])
+
+    assert code == 2
+    assert "formato" in capsys.readouterr().err
 
 
 def test_scan_parses_defaults() -> None:

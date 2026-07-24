@@ -33,7 +33,7 @@ class TerminalPanel(QWidget):
         # ── Header row
         header = QHBoxLayout()
 
-        self._badge = QLabel("0 emails found")
+        self._badge = QLabel("0 correos encontrados")
         badge_font = QFont()
         badge_font.setPointSize(11)
         badge_font.setBold(True)
@@ -43,7 +43,7 @@ class TerminalPanel(QWidget):
 
         header.addStretch()
 
-        self._clear_btn = QPushButton("Clear")
+        self._clear_btn = QPushButton("Limpiar")
         self._clear_btn.setFixedHeight(24)
         self._clear_btn.setStyleSheet("""
             QPushButton {
@@ -59,7 +59,7 @@ class TerminalPanel(QWidget):
         self._clear_btn.clicked.connect(self.clear)
         header.addWidget(self._clear_btn)
 
-        self._debug_btn = QPushButton("Show details")
+        self._debug_btn = QPushButton("Ver detalles")
         self._debug_btn.setFixedHeight(24)
         self._debug_btn.setCheckable(True)
         self._debug_btn.setStyleSheet("""
@@ -96,7 +96,7 @@ class TerminalPanel(QWidget):
         layout.addWidget(self._feed, stretch=3)
 
         # ── Debug log (hidden by default)
-        debug_label = QLabel("Crawler log")
+        debug_label = QLabel("Registro del rastreador")
         debug_label.setStyleSheet("color: #888888; font-size: 10px; margin-top: 4px;")
         debug_label.hide()
         self._debug_label = debug_label
@@ -133,7 +133,8 @@ class TerminalPanel(QWidget):
         self._count += 1
         self._feed.append(email)
         self._badge.setText(
-            f"{self._count} email{'s' if self._count != 1 else ''} found"
+            f"{self._count} correo{'s' if self._count != 1 else ''} "
+            f"encontrado{'s' if self._count != 1 else ''}"
         )
         self._scroll_to_bottom(self._feed)
 
@@ -146,7 +147,7 @@ class TerminalPanel(QWidget):
         self._feed.append(
             '<hr style="border: none; border-top: 1px solid #CCCCCC;">'
             '<p style="color: #AAAAAA; font-size: 10px; margin: 0;">'
-            '── resumed ──</p>'
+            '── reanudado ──</p>'
         )
 
     def append_debug(self, message: str) -> None:
@@ -166,7 +167,7 @@ class TerminalPanel(QWidget):
         self._feed.clear()
         self._debug_log.clear()
         self._count = 0
-        self._badge.setText("0 emails found")
+        self._badge.setText("0 correos encontrados")
 
     # ── Private
 
@@ -174,7 +175,9 @@ class TerminalPanel(QWidget):
         """Show or hide the debug log panel."""
         self._debug_log.setVisible(checked)
         self._debug_label.setVisible(checked)
-        self._debug_btn.setText("Hide details" if checked else "Show details")
+        self._debug_btn.setText(
+            "Ocultar detalles" if checked else "Ver detalles"
+        )
 
     def _scroll_to_bottom(self, widget: QTextEdit) -> None:
         """Scroll a QTextEdit to its latest entry."""

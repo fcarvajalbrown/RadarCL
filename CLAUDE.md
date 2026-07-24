@@ -58,6 +58,19 @@ messages, this file, ADRs) stays in English. GitHub topics are exempt —
 they're fixed platform taxonomy slugs (e.g. `osint`, `chile`), not
 translatable prose.
 
+## Decisions (ADR)
+
+Design decisions live in `docs/adr/`, indexed by `docs/adr/README.md`.
+
+**Never write an ADR without Felipe's input first — hard rule.** He is the
+`Deciders:` line, so an ADR drafted from assumptions is a fabricated record
+of his reasoning. Bring him the choice, the real alternatives and a
+recommendation through the interactive option UI, then write only what he
+picked. Approving a feature is not approving an ADR's contents.
+
+An Accepted ADR is immutable: a changed decision gets a new, next-numbered
+ADR, and the only edit ever made to the old one is its Status line.
+
 ## Architecture
 
 **Strict layering — `app/core/` and `app/cli.py` have zero Qt imports.**
@@ -104,8 +117,16 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   hardware; the tier badge is surfaced in the control panel UI.
 - `app/core/session.py` — SQLite store at `~/.radarcl/sessions.db`; auto-prunes to the
   last 10 sessions on each new session creation.
-- `app/core/exporter.py` — writes only VALID emails to CSV, auto-exported to
-  `~/Desktop/RadarCL-YYYY-MM-DD.csv` after verification finishes.
+- `app/core/exporter.py` — CSV, JSON and HTML writers behind one `export()`
+  dispatcher. **Contents differ by format, deliberately** ([ADR-0010](docs/adr/0010-export-contents-differ-by-format.md)):
+  CSV carries VALID only (the mailable deliverable, still auto-exported to
+  `~/Desktop/RadarCL-YYYY-MM-DD.csv` after a GUI verification), while JSON
+  and HTML carry every record with its `status` and `error`. Format comes
+  from the output extension, overridable with an explicit `fmt`; an
+  unrecognised extension raises `ValueError` so the CLI can fail before
+  crawling rather than after. The HTML report is self-contained — inline
+  CSS, no JavaScript, no external asset — and escapes every cell, since it
+  renders strings harvested from crawled pages.
 - `app/core/pipeline.py` — Qt-free orchestration of the two main loops:
   `crawl_and_extract()` (crawl → extract → pattern-generate, deduplicated,
   yielding `Discovery` objects) and `verify_all()` (verify → record dicts).
@@ -117,7 +138,9 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   (TSV: email, status, source) so it pipes; Spanish progress goes to
   stderr. Never triggers the Desktop auto-export, since
   `exporter.default_export_path()` creates `~/Desktop` — the CLI writes a
-  CSV only on an explicit `--output`.
+  file only on an explicit `--output`, in the format that path's extension
+  implies or that `--format` forces. The format is resolved before the
+  crawl starts, not after it.
 
 **Signal flow**: `CrawlerWorker`/`VerifierWorker` emit low-level signals (per-email,
 per-page, progress) → `ControlPanel` owns worker lifecycle (start/pause/stop/force-quit),

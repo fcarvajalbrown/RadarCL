@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 
-from app.core.exporter import export_valid
+from app.core.exporter import export
 from pathlib import Path
 
 
@@ -23,6 +23,20 @@ STATUS_COLORS = {
     'valid':   ('#E8F5E9', '#2E7D32'),  # (bg, fg)
     'unknown': ('#FFF8E1', '#F57F17'),
     'invalid': ('#FFEBEE', '#B71C1C'),
+}
+
+STATUS_LABELS = {
+    'valid': 'Válido',
+    'unknown': 'Desconocido',
+    'invalid': 'Inválido',
+}
+
+# Save-As filters, in the order they appear in the dialog. The suffix is
+# appended when the user types a name with no extension of its own.
+SAVE_FILTERS = {
+    "CSV — solo válidos (*.csv)": '.csv',
+    "JSON — todos los estados (*.json)": '.json',
+    "HTML — reporte (*.html)": '.html',
 }
 
 
@@ -44,7 +58,7 @@ class ResultsTable(QWidget):
         # ── Header row
         header = QHBoxLayout()
 
-        title = QLabel("Verified Results")
+        title = QLabel("Resultados verificados")
         title_font = QFont()
         title_font.setPointSize(11)
         title_font.setBold(True)
@@ -54,7 +68,7 @@ class ResultsTable(QWidget):
 
         header.addStretch()
 
-        self._copy_btn = QPushButton("Copy valid emails")
+        self._copy_btn = QPushButton("Copiar válidos")
         self._copy_btn.setFixedHeight(28)
         self._copy_btn.setStyleSheet("""
             QPushButton {
@@ -70,7 +84,7 @@ class ResultsTable(QWidget):
         self._copy_btn.clicked.connect(self._copy_valid)
         header.addWidget(self._copy_btn)
 
-        self._export_btn = QPushButton("Save As…")
+        self._export_btn = QPushButton("Exportar…")
         self._export_btn.setFixedHeight(28)
         self._export_btn.setStyleSheet("""
             QPushButton {
@@ -90,12 +104,14 @@ class ResultsTable(QWidget):
 
         # ── Filter bar
         filter_row = QHBoxLayout()
-        filter_label = QLabel("Filter:")
+        filter_label = QLabel("Filtrar:")
         filter_label.setStyleSheet("color: #888888; font-size: 11px;")
         filter_row.addWidget(filter_label)
 
         self._filter_input = QLineEdit()
-        self._filter_input.setPlaceholderText("Type to filter by email or source…")
+        self._filter_input.setPlaceholderText(
+            "Escribe para filtrar por correo u origen…"
+        )
         self._filter_input.setFixedHeight(28)
         self._filter_input.setStyleSheet("""
             QLineEdit {
@@ -118,7 +134,7 @@ class ResultsTable(QWidget):
         # ── Table
         self._table = QTableWidget()
         self._table.setColumnCount(3)
-        self._table.setHorizontalHeaderLabels(["Email", "Source", "Status"])
+        self._table.setHorizontalHeaderLabels(["Correo", "Origen", "Estado"])
         self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
         self._table.setSortingEnabled(True)
@@ -185,7 +201,9 @@ class ResultsTable(QWidget):
             email_item = QTableWidgetItem(row_data.get('email', ''))
             source_item = QTableWidgetItem(row_data.get('source', ''))
             status = row_data.get('status', 'unknown').lower()
-            status_item = QTableWidgetItem(status.capitalize())
+            status_item = QTableWidgetItem(
+                STATUS_LABELS.get(status, status.capitalize())
+            )
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
             bg, fg = STATUS_COLORS.get(status, ('#FFFFFF', '#333333'))
@@ -208,9 +226,9 @@ class ResultsTable(QWidget):
         invalid = sum(1 for r in results if r.get('status') == 'invalid')
         self._summary.setText(
             f"Total: {len(results)}   "
-            f"✓ Valid: {valid}   "
-            f"? Unknown: {unknown}   "
-            f"✗ Invalid: {invalid}"
+            f"✓ Válidos: {valid}   "
+            f"? Desconocidos: {unknown}   "
+            f"✗ Inválidos: {invalid}"
         )
 
     def _apply_filter(self, text: str) -> None:
@@ -235,17 +253,38 @@ class ResultsTable(QWidget):
             QApplication.clipboard().setText('\n'.join(valid_emails))
 
     def _save_as(self) -> None:
-        """Open a Save As dialog and export valid emails."""
-        path, _ = QFileDialog.getSaveFileName(
+        """
+        Open a Save As dialog and export the results.
+
+        CSV keeps carrying only the valid addresses; JSON and HTML carry
+        every status, so the filter the user picks changes what the file
+        contains, not just how it is formatted (ADR-0010).
+        """
+        path, selected = QFileDialog.getSaveFileName(
             self,
-            "Save valid emails",
+            "Guardar resultados",
             str(Path.home() / 'Desktop' / 'RadarCL-export.csv'),
-            "CSV files (*.csv)"
+            ';;'.join(SAVE_FILTERS),
         )
-        if path:
-            export_valid(self._results, Path(path))
-            QMessageBox.information(
+        if not path:
+            return
+
+        target = Path(path)
+        if target.suffix.lower() not in ('.csv', '.json', '.html', '.htm'):
+            target = target.with_suffix(SAVE_FILTERS.get(selected, '.csv'))
+
+        try:
+            export(self._results, target)
+        except OSError as exc:
+            QMessageBox.warning(
                 self,
-                "Saved",
-                f"Valid emails saved to:\n{path}"
+                "No se pudo guardar",
+                f"No se pudo escribir el archivo:\n{exc}"
             )
+            return
+
+        QMessageBox.information(
+            self,
+            "Guardado",
+            f"Resultados guardados en:\n{target}"
+        )

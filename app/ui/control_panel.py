@@ -185,7 +185,7 @@ class ControlPanel(QWidget):
 
         layout.addLayout(title_row)
 
-        subtitle = QLabel("Chilean email discovery")
+        subtitle = QLabel("Descubrimiento de correos chilenos")
         subtitle.setStyleSheet(
             "color: #888888; font-size: 11px; margin-bottom: 8px;"
         )
@@ -200,7 +200,7 @@ class ControlPanel(QWidget):
         bg, fg = tier_colors.get(self._hw.tier, ('#F5F5F5', '#333333'))
         hw_badge = QLabel(
             f"Hardware: {self._hw.tier}  "
-            f"({self._hw.ram_gb}GB RAM, {self._hw.cpu_cores} cores)"
+            f"({self._hw.ram_gb} GB RAM, {self._hw.cpu_cores} núcleos)"
         )
         hw_badge.setStyleSheet(
             f"background: {bg}; color: {fg}; font-size: 10px; "
@@ -211,18 +211,20 @@ class ControlPanel(QWidget):
         layout.addWidget(_divider())
 
         # ── Target domain
-        layout.addWidget(_label("Target email domain (optional)"))
+        layout.addWidget(_label("Dominio de correo objetivo (opcional)"))
         self._domain_input = QLineEdit()
         self._domain_input.setPlaceholderText(
-            "e.g. @bhp.cl  (blank = any .cl)"
+            "ej. @bhp.cl  (vacío = cualquier .cl)"
         )
         self._domain_input.setFixedHeight(32)
         layout.addWidget(self._domain_input)
 
         # ── Seed discovery
-        layout.addWidget(_label("Seeds (discovered automatically)"))
+        layout.addWidget(_label("Semillas (descubiertas automáticamente)"))
 
-        self._seed_status = QLabel("Enter target domain then click Discover")
+        self._seed_status = QLabel(
+            "Escribe el dominio objetivo y pulsa Buscar semillas"
+        )
         self._seed_status.setWordWrap(True)
         self._seed_status.setStyleSheet("color: #888888; font-size: 10px;")
         layout.addWidget(self._seed_status)
@@ -243,7 +245,7 @@ class ControlPanel(QWidget):
         """)
         layout.addWidget(self._seed_list)
 
-        self._discover_btn = QPushButton("⟳  Discover seeds")
+        self._discover_btn = QPushButton("⟳  Buscar semillas")
         self._discover_btn.setFixedHeight(28)
         self._discover_btn.setStyleSheet("""
             QPushButton {
@@ -260,11 +262,11 @@ class ControlPanel(QWidget):
         layout.addWidget(self._discover_btn)
 
         # ── Extra seeds
-        layout.addWidget(_label("Add more URLs (one per line, optional)"))
+        layout.addWidget(_label("Agregar más URLs (una por línea, opcional)"))
         self._extra_seeds = QTextEdit()
         self._extra_seeds.setFixedHeight(60)
         self._extra_seeds.setPlaceholderText(
-            "e.g. https://www.transparencia.cl\n"
+            "ej. https://www.transparencia.cl\n"
             "https://www.munitel.cl"
         )
         self._extra_seeds.setStyleSheet("""
@@ -284,13 +286,13 @@ class ControlPanel(QWidget):
         layout.addWidget(self._seed_error)
 
         # ── Email pattern
-        layout.addWidget(_label("Email pattern (optional)"))
+        layout.addWidget(_label("Patrón de correo (opcional)"))
 
         self._pattern_combo = QComboBox()
-        self._pattern_combo.addItem("— select a common pattern —", "")
+        self._pattern_combo.addItem("— elige un patrón común —", "")
         for preset in COMMON_PATTERNS:
             self._pattern_combo.addItem(preset["label"], preset["pattern"])
-        self._pattern_combo.addItem("Custom…", "__custom__")
+        self._pattern_combo.addItem("Personalizado…", "__custom__")
         self._pattern_combo.setFixedHeight(32)
         self._pattern_combo.currentIndexChanged.connect(
             self._on_pattern_combo_changed
@@ -299,42 +301,42 @@ class ControlPanel(QWidget):
 
         self._pattern_input = QLineEdit()
         self._pattern_input.setPlaceholderText(
-            "e.g. {first}.{last}  or  {f}{last}"
+            "ej. {first}.{last}  o  {f}{last}"
         )
         self._pattern_input.setFixedHeight(32)
         self._pattern_input.setToolTip(
             "Tokens: {first} {last} {f} {l}\n"
-            "Example: {first}.{last} → felipe.carvajal@bhp.cl"
+            "Ejemplo: {first}.{last} → felipe.carvajal@bhp.cl"
         )
         self._pattern_input.hide()
         layout.addWidget(self._pattern_input)
 
         # ── Phase 1 timeout
-        layout.addWidget(_label("Search .cl sites for"))
+        layout.addWidget(_label("Buscar en sitios .cl durante"))
         self._timeout_combo = QComboBox()
         self._timeout_combo.addItems([
-            "As long as possible",
-            "5 minutes",
-            "10 minutes",
-            "30 minutes",
+            "Todo el tiempo posible",
+            "5 minutos",
+            "10 minutos",
+            "30 minutos",
         ])
         self._timeout_combo.setFixedHeight(32)
         layout.addWidget(self._timeout_combo)
 
         # ── Phase 2 toggle
-        self._phase2_check = QCheckBox("Then expand to other sites")
+        self._phase2_check = QCheckBox("Luego expandir a otros sitios")
         self._phase2_check.setToolTip(
-            "After Phase 1 time is up, follow links to non-.cl sites.\n"
-            "Still only collects .cl emails."
+            "Al agotarse el tiempo de la fase 1, sigue enlaces fuera de .cl.\n"
+            "Aun así solo recolecta correos .cl."
         )
         layout.addWidget(self._phase2_check)
 
         # ── Verification depth
-        layout.addWidget(_label("How thoroughly check each email?"))
+        layout.addWidget(_label("¿Con cuánto detalle revisar cada correo?"))
         self._verify_combo = QComboBox()
         self._verify_combo.addItems([
-            "Quick  (format + domain)",
-            "Deep   (full verification)",
+            "Rápida  (formato + dominio)",
+            "Profunda  (verificación completa)",
         ])
         self._verify_combo.setCurrentIndex(1)
         self._verify_combo.setFixedHeight(32)
@@ -342,11 +344,11 @@ class ControlPanel(QWidget):
 
         # ── Polite mode
         self._robots_check = QCheckBox(
-            "Polite mode  (slower, more respectful)"
+            "Modo cortés  (más lento, más respetuoso)"
         )
         self._robots_check.setToolTip(
-            "Respects website crawling rules.\n"
-            "Recommended for ethical use."
+            "Respeta las reglas de rastreo del sitio.\n"
+            "Recomendado para un uso ético."
         )
         layout.addWidget(self._robots_check)
 
@@ -380,7 +382,7 @@ class ControlPanel(QWidget):
         btn_layout.addWidget(self._status_label)
 
         # ── Start
-        self._start_btn = QPushButton("▶   Start")
+        self._start_btn = QPushButton("▶   Iniciar")
         self._start_btn.setFixedHeight(44)
         self._start_btn.setStyleSheet("""
             QPushButton {
@@ -402,7 +404,7 @@ class ControlPanel(QWidget):
         btn_layout.addWidget(self._start_btn)
 
         # ── Pause
-        self._pause_btn = QPushButton("⏸   Pause")
+        self._pause_btn = QPushButton("⏸   Pausar")
         self._pause_btn.setFixedHeight(36)
         self._pause_btn.setEnabled(False)
         self._pause_btn.setStyleSheet("""
@@ -420,7 +422,7 @@ class ControlPanel(QWidget):
         btn_layout.addWidget(self._pause_btn)
 
         # ── Stop & Verify
-        self._stop_verify_btn = QPushButton("⏹   Stop && Verify")
+        self._stop_verify_btn = QPushButton("⏹   Detener y verificar")
         self._stop_verify_btn.setFixedHeight(36)
         self._stop_verify_btn.setEnabled(False)
         self._stop_verify_btn.setStyleSheet("""
@@ -440,7 +442,7 @@ class ControlPanel(QWidget):
         btn_layout.addWidget(self._stop_verify_btn)
 
         # ── Force Quit
-        self._force_quit_btn = QPushButton("✕   Force Quit")
+        self._force_quit_btn = QPushButton("✕   Forzar salida")
         self._force_quit_btn.setFixedHeight(30)
         self._force_quit_btn.setEnabled(False)
         self._force_quit_btn.setStyleSheet("""
@@ -458,7 +460,7 @@ class ControlPanel(QWidget):
         btn_layout.addWidget(self._force_quit_btn)
 
         # ── New Session
-        self._new_session_btn = QPushButton("↺   New Session")
+        self._new_session_btn = QPushButton("↺   Nueva sesión")
         self._new_session_btn.setFixedHeight(30)
         self._new_session_btn.setVisible(False)
         self._new_session_btn.setStyleSheet("""
@@ -492,15 +494,15 @@ class ControlPanel(QWidget):
         domain = str(self._domain_input.text()).strip().lstrip('@')
         if not domain:
             self._seed_error.setText(
-                "Enter a target domain first e.g. @nunoa.cl"
+                "Escribe primero un dominio objetivo, por ejemplo @nunoa.cl"
             )
             self._seed_error.show()
             return
 
         self._seed_error.hide()
         self._discover_btn.setEnabled(False)
-        self._discover_btn.setText("⟳  Discovering…")
-        self._seed_status.setText(f"Searching for seeds for {domain}…")
+        self._discover_btn.setText("⟳  Buscando…")
+        self._seed_status.setText(f"Buscando semillas para {domain}…")
         self._seed_list.clear()
 
         self._discovery_worker = _DiscoveryWorker(domain)
@@ -518,9 +520,9 @@ class ControlPanel(QWidget):
         """
         self._discovered_seeds = seeds
         self._seed_list.setPlainText('\n'.join(seeds))
-        self._seed_status.setText(f"{len(seeds)} seeds discovered")
+        self._seed_status.setText(f"{len(seeds)} semillas encontradas")
         self._discover_btn.setEnabled(True)
-        self._discover_btn.setText("⟳  Rediscover")
+        self._discover_btn.setText("⟳  Buscar de nuevo")
 
     # ── Slot: Start
 
@@ -533,7 +535,7 @@ class ControlPanel(QWidget):
         """
         if self._is_running:
             self._start_btn.setToolTip(
-                "Already running — use Pause or Stop && Verify"
+                "Ya está en marcha — usa Pausar o Detener y verificar"
             )
             return
 
@@ -548,8 +550,8 @@ class ControlPanel(QWidget):
 
         if not all_seeds:
             self._seed_error.setText(
-                "No seeds found.\n"
-                "Click 'Discover seeds' first or add URLs manually."
+                "No hay semillas.\n"
+                "Pulsa 'Buscar semillas' primero o agrega URLs a mano."
             )
             self._seed_error.show()
             return
@@ -564,7 +566,7 @@ class ControlPanel(QWidget):
         self._session_id = session.new_session(target, all_seeds)
 
         self._set_running_state(True)
-        self._status_label.setText("Crawling…")
+        self._status_label.setText("Rastreando…")
 
         self._crawler = CrawlerWorker(
             seeds=all_seeds,
@@ -594,14 +596,14 @@ class ControlPanel(QWidget):
         if self._is_paused:
             self._crawler.resume()
             self._is_paused = False
-            self._pause_btn.setText("⏸   Pause")
-            self._status_label.setText("Crawling…")
+            self._pause_btn.setText("⏸   Pausar")
+            self._status_label.setText("Rastreando…")
             self.session_resumed.emit()
         else:
             self._crawler.pause()
             self._is_paused = True
-            self._pause_btn.setText("▶   Resume")
-            self._status_label.setText("Paused.")
+            self._pause_btn.setText("▶   Reanudar")
+            self._status_label.setText("En pausa.")
 
     # ── Slot: Stop & Verify
 
@@ -615,7 +617,7 @@ class ControlPanel(QWidget):
         self._is_running = False
         self._set_running_state(False)
         self._status_label.setText(
-            f"Checking {len(self._collected_emails)} emails…"
+            f"Revisando {len(self._collected_emails)} correos…"
         )
         self._progress.setVisible(True)
         self._progress.setMaximum(max(len(self._collected_emails), 1))
@@ -678,7 +680,7 @@ class ControlPanel(QWidget):
 
         self._new_session_btn.setVisible(True)
         self._status_label.setText(
-            "Session ended. Emails above are still visible."
+            "Sesión terminada. Los correos de arriba siguen a la vista."
         )
         self._progress.setVisible(False)
 
@@ -687,15 +689,15 @@ class ControlPanel(QWidget):
     def _on_new_session(self) -> None:
         """Ask user to start fresh or reuse last settings."""
         msg = QMessageBox(self)
-        msg.setWindowTitle("New Session")
-        msg.setText("How would you like to start?")
+        msg.setWindowTitle("Nueva sesión")
+        msg.setText("¿Cómo quieres empezar?")
         fresh_btn = msg.addButton(
-            "Start fresh", QMessageBox.ButtonRole.AcceptRole
+            "Empezar de cero", QMessageBox.ButtonRole.AcceptRole
         )
         reuse_btn = msg.addButton(
-            "Reuse last settings", QMessageBox.ButtonRole.NoRole
+            "Reusar la configuración anterior", QMessageBox.ButtonRole.NoRole
         )
-        msg.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        msg.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
         msg.exec()
 
         clicked = msg.clickedButton()
@@ -724,20 +726,21 @@ class ControlPanel(QWidget):
         self._set_running_state(False)
         if not self._force_quit:
             self._status_label.setText(
-                f"Crawl complete. {len(self._collected_emails)} emails found.\n"
-                "Click Stop && Verify to check them."
+                f"Rastreo completo. {len(self._collected_emails)} correos "
+                f"encontrados.\n"
+                "Pulsa Detener y verificar para revisarlos."
             )
             # Re-enable Stop & Verify so user can still verify
             self._stop_verify_btn.setEnabled(True)
 
     def _on_page_crawled(self, count: int) -> None:
         """Update status label with current page count."""
-        self._status_label.setText(f"Crawling… {count} sites visited")
+        self._status_label.setText(f"Rastreando… {count} sitios visitados")
 
     def _on_verify_progress(self, done: int, total: int) -> None:
         """Update progress bar during verification."""
         self._progress.setValue(done)
-        self._status_label.setText(f"Checking {done}/{total} emails…")
+        self._status_label.setText(f"Revisando {done}/{total} correos…")
 
     def _on_verify_finished(self, results: list) -> None:
         """Persist statuses, forward results, and auto-export."""
@@ -746,8 +749,8 @@ class ControlPanel(QWidget):
             session.update_email_status(self._session_id, r['email'], r['status'])
         valid = sum(1 for r in results if r.get('status') == 'valid')
         self._status_label.setText(
-            f"Done. {valid} valid emails found.\n"
-            "Results saved to your Desktop."
+            f"Listo. {valid} correos válidos encontrados.\n"
+            "Los resultados se guardaron en tu Escritorio."
         )
         self._new_session_btn.setVisible(True)
         self.verification_done.emit(results)
@@ -761,7 +764,7 @@ class ControlPanel(QWidget):
         """Toggle button states between idle and running."""
         self._start_btn.setEnabled(not running)
         self._start_btn.setToolTip(
-            "Already running — use Pause or Stop && Verify"
+            "Ya está en marcha — usa Pausar o Detener y verificar"
             if running else ""
         )
         self._pause_btn.setEnabled(running)
@@ -787,12 +790,14 @@ class ControlPanel(QWidget):
         self._progress.setValue(0)
         self._status_label.setText("")
         self._new_session_btn.setVisible(False)
-        self._pause_btn.setText("⏸   Pause")
+        self._pause_btn.setText("⏸   Pausar")
         self._set_running_state(False)
         self._start_btn.setEnabled(True)
         self._seed_list.clear()
-        self._seed_status.setText("Enter target domain then click Discover")
-        self._discover_btn.setText("⟳  Discover seeds")
+        self._seed_status.setText(
+            "Escribe el dominio objetivo y pulsa Buscar semillas"
+        )
+        self._discover_btn.setText("⟳  Buscar semillas")
         self._discover_btn.setEnabled(True)
         self._seed_error.hide()
 

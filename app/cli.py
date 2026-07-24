@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from app import __version__
-from app.core.exporter import export_valid
+from app.core.exporter import export, infer_format
 from app.core.hw_profile import get_hw_profile
 from app.core.pipeline import Discovery, crawl_and_extract, verify_all
 from app.core.seed_discoverer import discover_seeds
@@ -126,7 +126,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     verify_cmd.add_argument(
         '--output', default=None,
-        help='Ruta del CSV de salida. Sin esto no se escribe ningun archivo.',
+        help=(
+            'Ruta del archivo de salida. Sin esto no se escribe ningun '
+            'archivo.'
+        ),
+    )
+    verify_cmd.add_argument(
+        '--format', choices=['csv', 'json', 'html'], default=None,
+        help=(
+            'Formato de salida. Por defecto se deduce de la extension de '
+            '--output. El CSV lleva solo las direcciones validas; JSON y '
+            'HTML llevan todos los estados.'
+        ),
     )
     verify_cmd.add_argument(
         '--no-session', action='store_true',
@@ -196,7 +207,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan.add_argument(
         '--output', default=None,
-        help='Ruta del CSV de salida. Sin esto no se escribe ningun archivo.',
+        help=(
+            'Ruta del archivo de salida. Sin esto no se escribe ningun '
+            'archivo.'
+        ),
+    )
+    scan.add_argument(
+        '--format', choices=['csv', 'json', 'html'], default=None,
+        help=(
+            'Formato de salida. Por defecto se deduce de la extension de '
+            '--output. El CSV lleva solo las direcciones validas; JSON y '
+            'HTML llevan todos los estados.'
+        ),
     )
     scan.add_argument(
         '--no-session', action='store_true',
@@ -228,9 +250,28 @@ def cmd_discover(args: argparse.Namespace) -> int:
     return 0
 
 
-def write_results(results: list[dict], output: str | None, quiet: bool) -> None:
+def resolve_format(output: str | None, fmt: str | None) -> str | None:
     """
-    Write the CSV export and the stderr summary for a finished run.
+    Settle the export format before any slow work starts.
+
+    Returns None when there is nothing to export. Raises ValueError when
+    the extension is unrecognised and no --format was given, so a `scan`
+    with a typo in --output fails in the first second instead of after a
+    ten-minute crawl.
+    """
+    if output is None:
+        return None
+    return fmt or infer_format(output)
+
+
+def write_results(
+    results: list[dict],
+    output: str | None,
+    quiet: bool,
+    fmt: str | None = None,
+) -> None:
+    """
+    Write the export and the stderr summary for a finished run.
 
     The Desktop auto-export the GUI performs is deliberately never
     triggered here: exporter.default_export_path() creates ~/Desktop, which
@@ -242,7 +283,7 @@ def write_results(results: list[dict], output: str | None, quiet: bool) -> None:
         counts[record['status']] = counts.get(record['status'], 0) + 1
 
     if output is not None:
-        path = export_valid(results, Path(output))
+        path = export(results, Path(output), fmt)
         log(f"Exportado a {path}", quiet)
 
     log(
@@ -270,6 +311,12 @@ def _persist(session_id: int | None, results: list[dict]) -> None:
 
 def cmd_verify(args: argparse.Namespace) -> int:
     """Verify a list of addresses read from a file or stdin."""
+    try:
+        export_format = resolve_format(args.output, args.format)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
     pairs = read_email_list(args.input)
     if not pairs:
         print("No se leyo ninguna direccion.", file=sys.stderr)
@@ -291,11 +338,11 @@ def cmd_verify(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         log("Interrumpido. Se conservan los resultados parciales.", args.quiet)
         _persist(session_id, results)
-        write_results(results, args.output, args.quiet)
+        write_results(results, args.output, args.quiet, export_format)
         return 130
 
     _persist(session_id, results)
-    write_results(results, args.output, args.quiet)
+    write_results(results, args.output, args.quiet, export_format)
     return 0
 
 
@@ -331,6 +378,12 @@ async def _crawl_into(
 
 def cmd_scan(args: argparse.Namespace) -> int:
     """Run the full pipeline: discover, crawl, extract, verify."""
+    try:
+        export_format = resolve_format(args.output, args.format)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
     domain = args.domain.lstrip('@').lower().strip()
     profile = get_hw_profile()
     log(
@@ -393,7 +446,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
         )
 
     _persist(session_id, results)
-    write_results(results, args.output, args.quiet)
+    write_results(results, args.output, args.quiet, export_format)
     return 130 if interrupted else 0
 
 

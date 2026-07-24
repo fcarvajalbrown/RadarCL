@@ -126,10 +126,30 @@ scope, distributed crawling).
 (the Qt-free `core` boundary this mode is built on).
 
 ### v0.35 — Export flexibility
-**Status:** Not Started
-- [ ] JSON/HTML export alongside the existing CSV auto-export
+**Status:** Done
+- [x] JSON and HTML export alongside the existing CSV auto-export
       (`app/core/exporter.py`) — output-format parity with theHarvester,
-      and the natural output surface for CLI mode.
+      and the natural output surface for CLI mode. Format comes from the
+      `--output` extension, overridable with `--format`; both the CLI and
+      the GUI go through one `export()` entry point.
+- [x] Contents differ by format: CSV stays VALID-only, JSON and HTML carry
+      every record with its status and the `error` explaining it. A
+      valid-only file discards exactly the rows worth retrying, which is
+      the failure mode
+      [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md)
+      documented. See
+      [ADR-0010](docs/adr/0010-export-contents-differ-by-format.md).
+- [x] HTML is a single self-contained report — inline CSS, no JavaScript,
+      no external asset — so it opens on a machine with no network, the
+      same stance [ADR-0008](docs/adr/0008-vendored-core-dependencies.md)
+      takes on dependencies.
+- [x] GUI strings finished in Spanish. `control_panel.py`,
+      `results_table.py` and `terminal_panel.py` still held English labels,
+      status messages and dialogs from before the translation rule, which
+      contradicted CLAUDE.md's standing language rule.
+
+**Relevant ADRs:** [0010](docs/adr/0010-export-contents-differ-by-format.md)
+(why a CSV and a JSON of the same run legitimately disagree on row count).
 
 ### v0.40 — Source breadth (Chile-curated)
 **Status:** Not Started

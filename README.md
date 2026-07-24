@@ -3,7 +3,7 @@
 
 # RadarCL
 
-![versión](https://img.shields.io/badge/versi%C3%B3n-0.3.0-blue)
+![versión](https://img.shields.io/badge/versi%C3%B3n-0.3.5-blue)
 ![licencia](https://img.shields.io/badge/licencia-Apache%202.0-green)
 ![plataforma](https://img.shields.io/badge/plataforma-Windows%20(GUI)%20%7C%20CLI%20sin%20Qt-slate)
 ![tecnología](https://img.shields.io/badge/tecnolog%C3%ADa-Python%20%7C%20PySide6-blue)
@@ -57,6 +57,9 @@ python -m app.cli scan nunoa.cl --pattern "{first}.{last}" --output correos.csv
 
 # Verificar una lista que ya tienes
 python -m app.cli verify --input correos.txt --no-smtp
+
+# Reporte HTML en lugar de CSV
+python -m app.cli scan nunoa.cl --output reporte.html
 ```
 
 Los datos salen por stdout y los mensajes de progreso por stderr, así que el
@@ -71,6 +74,27 @@ detecta. Las opciones `--concurrency`, `--delay` y `--max-pages` lo
 sobrescriben. Cada ejecución queda registrada en `~/.radarcl/sessions.db`
 salvo que uses `--no-session`. El listado completo de opciones está en
 `python -m app.cli --help`.
+
+## Exportación
+
+Tres formatos, y el contenido cambia según cuál elijas:
+
+| Formato | Qué contiene |
+|---|---|
+| CSV | Solo las direcciones válidas. Es la lista que se ocupa para escribir. |
+| JSON | Todos los resultados, con su estado, el motivo de la falla y un resumen de conteos. |
+| HTML | Lo mismo que el JSON, como reporte de un solo archivo que se abre en el navegador. |
+
+El formato sale de la extensión de `--output`, y `--format csv|json|html` lo
+fuerza cuando la extensión no alcanza. La asimetría es deliberada: un correo
+marcado como desconocido no es un correo inválido, sino uno que no se pudo
+comprobar, y esa distinción se pierde si el único formato disponible filtra
+por válidos. El razonamiento está en
+[ADR-0010](docs/adr/0010-export-contents-differ-by-format.md).
+
+En la interfaz gráfica, el botón `Exportar…` ofrece los tres. La exportación
+automática al Escritorio que corre al terminar una verificación sigue siendo
+CSV y solo CSV.
 
 ## Instalación sin conexión
 
@@ -123,7 +147,17 @@ Los módulos del núcleo son independientes entre sí: `seed_discoverer`,
 
 ## Historial de versiones
 
-### v0.3.0 (actual)
+### v0.3.5 (actual)
+- Exportación en JSON y HTML además del CSV, elegida por la extensión de
+  `--output` o forzada con `--format`
+- El JSON y el HTML llevan todos los estados con su motivo; el CSV sigue
+  llevando solo las direcciones válidas
+  ([ADR-0010](docs/adr/0010-export-contents-differ-by-format.md))
+- Reporte HTML autocontenido: sin JavaScript, sin hojas de estilo externas,
+  se abre sin conexión
+- Interfaz gráfica completamente en español
+
+### v0.3.0
 - Modo CLI sin Qt (`python -m app.cli`) con tres subcomandos: `discover`,
   `scan` y `verify`
 - `app/core/` documentado y utilizable como biblioteca independiente

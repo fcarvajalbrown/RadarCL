@@ -11,3 +11,4 @@
 | [0007](0007-smtp-response-classification.md) | SMTP response classification by reply-code class | Superseded by 0009 |
 | [0008](0008-vendored-core-dependencies.md) | Vendored core dependencies, hash-pinned GUI dependencies | Accepted |
 | [0009](0009-mx-resolution-failure-is-unknown.md) | MX resolution failure is UNKNOWN, with fallback transports | Accepted |
+| [0010](0010-export-contents-differ-by-format.md) | Export contents differ by format: CSV is the mailable list, JSON and HTML are the run record | Accepted |
