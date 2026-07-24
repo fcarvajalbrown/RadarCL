@@ -68,7 +68,7 @@ stub carried over three items from the README's "Planned Features v1.1"
 list, but by the time this rewrite happened, pattern-based email generation
 was already fully implemented and wired in (`app/core/pattern_generator.py`,
 consumed by `app/workers/crawler_worker.py` and `app/ui/control_panel.py`)
-— the stub was stale, not accurate. See [PRD.md](PRD.md) for the vision,
+— the stub was stale, not accurate. See [PRD.md](docs/PRD.md) for the vision,
 primary-audience, and competitive-positioning decisions this breakdown is
 built on.
 
@@ -210,7 +210,7 @@ scope, distributed crawling).
       ([ADR-0002](docs/adr/0002-async-core-qthread-worker-bridge.md)).
 
 ### v1.0.0
-Tag once v0.25 → v0.90 are shipped and [PRD.md](PRD.md)'s success criteria
+Tag once v0.25 → v0.90 are shipped and [PRD.md](docs/PRD.md)'s success criteria
 hold.
 
 ## Beyond v1.0

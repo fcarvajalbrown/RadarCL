@@ -77,7 +77,7 @@ el qué. Sin emojis y sin atribución a herramientas de IA.
 
 ## Dónde mirar primero
 
-- [PRD.md](PRD.md) — el problema, el público objetivo y lo que RadarCL
+- [PRD.md](docs/PRD.md) — el problema, el público objetivo y lo que RadarCL
   explícitamente no pretende ser.
 - [ROADMAP.md](ROADMAP.md) — qué viene, por versión. Si buscas por dónde
   empezar, los puntos sin marcar de la versión más baja son el mejor
