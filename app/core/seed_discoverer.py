@@ -423,8 +423,11 @@ async def _verify_subdomains(
     async def probe(host: str) -> str | None:
         """Return https URL if host resolves and responds, else None."""
         try:
-            await asyncio.get_event_loop().run_in_executor(
-                None, socket.gethostbyname, host
+            await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None, socket.gethostbyname, host
+                ),
+                timeout=5.0,
             )
             url = f"https://{host}"
             resp = await client.head(url, timeout=8.0)
