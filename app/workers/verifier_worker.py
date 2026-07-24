@@ -5,7 +5,7 @@ batch of collected emails, emitting progress signals to the GUI.
 
 from PySide6.QtCore import QThread, Signal
 
-from app.core.verifier import verify, VStatus
+from app.core.pipeline import verify_all
 
 
 class VerifierWorker(QThread):
@@ -55,32 +55,20 @@ class VerifierWorker(QThread):
         self._stop_flag = True
 
     def run(self) -> None:
-        """Verify all emails and emit results."""
-        results = []
+        """
+        Consume the shared verification pipeline, emitting per-result
+        signals. All verification logic lives in app.core.pipeline.
+        """
+        results: list[dict] = []
         total = len(self._emails)
 
-        for i, (email, source) in enumerate(self._emails):
+        for i, record in enumerate(verify_all(
+            self._emails,
+            smtp_enabled=self._smtp_enabled,
+            api_key=self._api_key,
+        )):
             if self._stop_flag:
                 break
-
-            vr = verify(
-                email,
-                smtp_enabled=self._smtp_enabled,
-                api_key=self._api_key,
-            )
-
-            status_str = {
-                VStatus.VALID:   'valid',
-                VStatus.INVALID: 'invalid',
-                VStatus.UNKNOWN: 'unknown',
-            }[vr.status]
-
-            record = {
-                'email':  email,
-                'source': source,
-                'status': status_str,
-                'error':  vr.error,
-            }
 
             results.append(record)
             self.result_ready.emit(record)

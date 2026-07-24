@@ -11,9 +11,7 @@ Conservative defaults for low-spec hardware (Dell Optiplex etc.):
 import asyncio
 from PySide6.QtCore import QThread, Signal
 
-from app.core.crawler import Crawler
-from app.core.extractor import extract_emails
-from app.core.pattern_generator import generate_candidates
+from app.core.pipeline import crawl_and_extract
 
 
 class CrawlerWorker(QThread):
@@ -107,46 +105,30 @@ class CrawlerWorker(QThread):
 
     async def _crawl(self) -> None:
         """
-        Async crawl loop.
+        Consume the shared pipeline, re-emitting each result as a signal.
 
-        Emits email_found for each scraped match and
-        candidate_found for each pattern-generated address.
+        All crawl/extract/generate logic lives in app.core.pipeline; this
+        method only bridges it onto the Qt signal layer.
         """
-        seen: set[str] = set()
-        crawler = Crawler(
-            seeds=self._seeds,
+        def on_page(url: str, count: int) -> None:
+            self.debug_message.emit(f"[crawl] {url}")
+            self.page_crawled.emit(count)
+
+        async for discovery in crawl_and_extract(
+            self._seeds,
+            target_domain=self._target,
             phase2_enabled=self._phase2_enabled,
             phase1_timeout=self._phase1_timeout,
             max_pages=self._max_pages,
             respect_robots=self._respect_robots,
+            pattern=self._pattern,
+            request_delay=self._request_delay,
             concurrency=self._concurrency,
-            pause_event=self._pause_event, # type: ignore
-        )
-
-        pages = 0
-        async for url, html in crawler.crawl():
-            if self._stop_flag:
-                break
-
-            self.debug_message.emit(f"[crawl] {url}")
-            pages += 1
-            self.page_crawled.emit(pages)
-
-            # Scraped emails
-            for record in extract_emails(html, url):
-                email = record['email']
-                if self._target and not email.endswith(self._target):
-                    continue
-                if email not in seen:
-                    seen.add(email)
-                    self.email_found.emit(email, url)
-
-            # Pattern-generated candidates
-            if self._pattern and self._target:
-                for candidate in generate_candidates(html, self._pattern, self._target):
-                    if candidate not in seen:
-                        seen.add(candidate)
-                        self.candidate_found.emit(candidate, url)
-
-            # Polite delay — keeps CPU and network load low
-            await asyncio.sleep(self._request_delay)
+            pause_event=self._pause_event,
+            on_page=on_page,
+            should_stop=lambda: self._stop_flag,
+        ):
+            if discovery.generated:
+                self.candidate_found.emit(discovery.email, discovery.source_url)
+            else:
+                self.email_found.emit(discovery.email, discovery.source_url)
