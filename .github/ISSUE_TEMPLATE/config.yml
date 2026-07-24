@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Cómo contribuir
+    url: https://github.com/fcarvajalbrown/RadarCL/blob/main/CONTRIBUTING.md
+    about: Preparar el entorno, ejecutar las pruebas y las reglas del proyecto.
+  - name: Decisiones de diseño (ADR)
+    url: https://github.com/fcarvajalbrown/RadarCL/tree/main/docs/adr
+    about: Por qué RadarCL funciona como funciona, antes de proponer cambiarlo.

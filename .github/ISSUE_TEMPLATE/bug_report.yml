@@ -1,0 +1,69 @@
+name: Reportar un error
+description: Algo no funciona como debería
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de continuar: **no pegues direcciones de correo reales que
+        hayas recolectado**. Son datos personales y este repositorio es
+        público. Reemplázalas por ejemplos como `persona@ejemplo.cl`.
+
+  - type: textarea
+    id: que-pasa
+    attributes:
+      label: Qué pasa
+      description: Qué esperabas que ocurriera y qué ocurrió en su lugar.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducir
+    attributes:
+      label: Cómo reproducirlo
+      description: >
+        Los pasos exactos. Si usas la CLI, pega el comando completo con las
+        opciones que hayas puesto.
+      placeholder: |
+        1. python -m app.cli scan ejemplo.cl --pattern "{first}.{last}"
+        2. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: modo
+    attributes:
+      label: Cómo lo estabas usando
+      options:
+        - Interfaz gráfica (python -m app.main)
+        - Línea de comandos (python -m app.cli)
+        - Como biblioteca (importando app.core)
+        - El ejecutable de Windows (RadarCL.exe)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versión de RadarCL
+      description: La que muestra `python -m app.cli --version`.
+      placeholder: "0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: entorno
+    attributes:
+      label: Sistema operativo y versión de Python
+      placeholder: "Windows 10, Python 3.12.4"
+    validations:
+      required: true
+
+  - type: textarea
+    id: salida
+    attributes:
+      label: Mensajes de error o salida relevante
+      description: >
+        Se formatea como código automáticamente, no hace falta usar comillas
+        invertidas. Recuerda censurar las direcciones reales.
+      render: text

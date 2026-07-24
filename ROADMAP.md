@@ -77,8 +77,11 @@ cheap/high-credibility wins before the two genuinely large items (`.com`
 scope, distributed crawling).
 
 ### v0.25 — Foundation / quality bar
-**Status:** In Progress — verifier fix done; CI and CONTRIBUTING.md remain.
-- [ ] CI pipeline: GitHub Actions running `pytest -m "not smtp"` on push/PR.
+**Status:** Done
+- [x] CI pipeline: GitHub Actions running `pytest -m "not smtp"` on
+      push/PR (`.github/workflows/tests.yml`), on ubuntu-latest with
+      Python 3.12. Also verifies `vendor/` integrity via
+      `scripts/vendor.py --check` and that the CLI starts.
 - [x] Verifier fix: a non-250 SMTP response with no exception set
       `VStatus.INVALID` in `app/core/verifier.py`, contradicting
       [ADR-0004](docs/adr/0004-verification-staging-unknown-not-invalid.md).
@@ -104,7 +107,9 @@ scope, distributed crawling).
       removed from PyPI. GUI deps hash-pinned but not vendored —
       `pyside6_addons` is 169 MB, over GitHub's 100 MiB per-file limit. See
       [ADR-0008](docs/adr/0008-vendored-core-dependencies.md).
-- [ ] `CONTRIBUTING.md` + issue/PR templates.
+- [x] `CONTRIBUTING.md` + issue/PR templates — in Spanish, matching the
+      README, with the bug template warning contributors not to paste real
+      harvested addresses into a public repository.
 
 ### v0.30 — Core-as-library / CLI mode
 **Status:** Done

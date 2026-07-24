@@ -1,0 +1,52 @@
+name: Proponer una mejora
+description: Sugerir una función nueva o un cambio de comportamiento
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de abrir una propuesta, revisa
+        [ROADMAP.md](../blob/main/ROADMAP.md): puede que ya esté planificada,
+        y en ese caso conviene comentar ahí en lugar de abrir algo nuevo.
+
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qué problema resuelve
+      description: >
+        Describe la situación concreta que te llevó a pedir esto, no la
+        solución. Es más fácil evaluar una propuesta sabiendo qué se
+        rompió o qué costó trabajo.
+    validations:
+      required: true
+
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Qué propones
+      description: Cómo te imaginas que debería funcionar.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: alcance
+    attributes:
+      label: Qué parte afecta
+      options:
+        - Descubrimiento de semillas
+        - Rastreo y extracción
+        - Verificación de correos
+        - Exportación de resultados
+        - Interfaz gráfica
+        - Línea de comandos
+        - Otra cosa / no estoy seguro
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que consideraste
+      description: >
+        Opcional. Si descartaste otros enfoques, saberlo ahorra repetir el
+        análisis.
