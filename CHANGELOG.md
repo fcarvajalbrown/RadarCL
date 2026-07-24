@@ -56,6 +56,18 @@ español.
   pesaban 57 MB cada uno y habían llevado el repositorio sobre los 110 MB.
   Ahora se distribuyen como archivos adjuntos a un release.
 
+### Antes de instalar
+El ejecutable no está firmado digitalmente, así que Windows SmartScreen
+puede advertir al abrirlo. Algunos antivirus marcan como sospechoso
+cualquier ejecutable empaquetado con PyInstaller, sin que haya nada
+sospechoso adentro; es un problema conocido del empaquetado y está
+anotado en la hoja de ruta. El código está completo en este repositorio
+para quien prefiera compilarlo por su cuenta.
+
+RadarCL es para investigación OSINT legítima. No está autorizado su uso
+para envío masivo de correo no solicitado, acoso, ni ningún otro fin
+malicioso.
+
 ## 0.3.0 - 2026-07-24
 
 RadarCL dejó de ser solo una aplicación de escritorio. `app/core/` no
