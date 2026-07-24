@@ -87,6 +87,13 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   harvests likely person names (`Firstname Lastname` capitalisation heuristic, with a
   Chilean first-name set to resolve word order) and generates candidate addresses from a
   template (`{first}.{last}`, `{f}{last}`, etc.) — see `COMMON_PATTERNS` for presets.
+- `app/core/dns_lookup.py` — MX resolution with fallback transports: system
+  resolver → public nameservers (`8.8.8.8`, `1.1.1.1`) → DNS-over-HTTPS.
+  Raises `DomainNotFound` (definitive, → INVALID) or `MXUnavailable`
+  (indeterminate, → UNKNOWN); the distinction is the whole point, since a
+  resolver timeout is not evidence an address is dead ([ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md)).
+  The DoH leg exists because dnspython uses UDP/53, which some networks
+  filter while leaving HTTPS working.
 - `app/core/verifier.py` — sequential pipeline per email: syntax regex → DNS MX lookup →
   raw SMTP `RCPT TO` handshake (no email actually sent) → optional API stage (currently
   a placeholder). Returns a `VerificationResult` with a `VStatus` of VALID/UNKNOWN/INVALID;

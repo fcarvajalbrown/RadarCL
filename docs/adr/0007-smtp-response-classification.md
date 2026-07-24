@@ -1,7 +1,7 @@
 # 0007 - SMTP response classification by reply-code class
 
 ## Status
-Accepted - supersedes [0004](0004-verification-staging-unknown-not-invalid.md)
+Superseded by [0009](0009-mx-resolution-failure-is-unknown.md)
 
 ## Date
 2026-07-24

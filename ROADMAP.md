@@ -84,8 +84,16 @@ scope, distributed crawling).
       [ADR-0004](docs/adr/0004-verification-staging-unknown-not-invalid.md).
       Now classified by reply-code class — 250 valid, 5xx invalid, 4xx and
       252 unknown — per
-      [ADR-0007](docs/adr/0007-smtp-response-classification.md), which
-      supersedes 0004.
+      [ADR-0007](docs/adr/0007-smtp-response-classification.md), itself
+      later superseded by
+      [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md).
+- [x] MX stage fix: a DNS resolver timeout was classified `INVALID`,
+      identically to a nonexistent domain, so 16 real `@nunoa.cl`
+      addresses were reported dead on a machine whose nameservers do not
+      answer over UDP/53. Resolver failures are now `UNKNOWN`, and
+      `app/core/dns_lookup.py` falls back from the system resolver to
+      public nameservers to DNS-over-HTTPS. See
+      [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md).
 - [x] Test markers: three verifier tests did live DNS lookups without the
       `smtp` marker, so `pytest -m "not smtp"` was not actually offline.
       Marker widened to mean live internet generally; offline suite now
@@ -152,7 +160,7 @@ scope, distributed crawling).
       and the current code reports those as VALID. Needs a second probe to
       a random address at the same domain, a fourth status bucket, and its
       own ADR. Surfaced by the research behind
-      [ADR-0007](docs/adr/0007-smtp-response-classification.md).
+      [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md).
 
 ### v0.65 — Distributed crawling, part 1: job distribution
 **Status:** Not Started

@@ -3,7 +3,9 @@ Multi-stage email verifier.
 
 Stages (run in order):
   1. Syntax  — regex format check
-  2. MX      — DNS MX record lookup
+  2. MX      — DNS MX lookup with fallback transports; a nonexistent
+               domain is invalid, an unanswerable resolver is unknown
+               (ADR-0009)
   3. SMTP    — handshake without sending email; 250 valid,
                5xx invalid, 4xx/252 unknown (ADR-0007)
   4. API     — optional third-party (placeholder)
@@ -16,7 +18,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional
 
-import dns.resolver
+from app.core.dns_lookup import DomainNotFound, MXUnavailable, resolve_mx
 
 
 class VStatus(Enum):
@@ -77,14 +79,18 @@ def verify(
     # Stage 2: MX
     domain = email.split('@')[1]
     try:
-        mx_records = dns.resolver.resolve(domain, 'MX')
-        mx_host = str(
-            sorted(mx_records, key=lambda r: r.preference)[0].exchange
-        ).rstrip('.')
+        mx_host = resolve_mx(domain)
         result.mx_ok = True
-    except Exception as exc:
+    except DomainNotFound as exc:
+        # Definitive: the domain has nowhere to deliver mail.
         result.status = VStatus.INVALID
         result.error = f"No MX record: {exc}"
+        return result
+    except MXUnavailable as exc:
+        # No transport could answer. That says nothing about the address,
+        # so it must not be reported as invalid — see ADR-0009.
+        result.status = VStatus.UNKNOWN
+        result.error = f"MX lookup failed: {exc}"
         return result
 
     if not smtp_enabled:

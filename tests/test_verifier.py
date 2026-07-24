@@ -65,10 +65,49 @@ def test_error_message_populated_on_failure() -> None:
     assert result.error != ""
 
 
-class _FakeMX:
-    """Minimal stand-in for a dnspython MX rdata object."""
-    preference = 10
-    exchange = "mx.example.cl."
+def test_mx_resolver_failure_is_unknown(monkeypatch) -> None:
+    """
+    A resolver that cannot answer is no information, not a verdict.
+
+    This is the bug that reported 16 real @nunoa.cl addresses as INVALID:
+    dnspython timed out against the configured nameservers, and the MX
+    stage treated that identically to a nonexistent domain. See ADR-0009.
+    """
+    def _unavailable(domain):
+        raise verifier.MXUnavailable("LifetimeTimeout: resolution expired")
+
+    monkeypatch.setattr(verifier, "resolve_mx", _unavailable)
+    result = verify("gbenavides@nunoa.cl", smtp_enabled=True)
+
+    assert result.status == VStatus.UNKNOWN
+    assert result.mx_ok is False
+    assert "LifetimeTimeout" in result.error
+
+
+def test_nonexistent_domain_is_still_invalid(monkeypatch) -> None:
+    """A domain that definitively does not exist stays INVALID."""
+    def _missing(domain):
+        raise verifier.DomainNotFound(f"{domain} does not exist")
+
+    monkeypatch.setattr(verifier, "resolve_mx", _missing)
+    result = verify("user@thisdoesnotexist123456.cl", smtp_enabled=True)
+
+    assert result.status == VStatus.INVALID
+    assert result.mx_ok is False
+
+
+def test_resolved_mx_reaches_the_smtp_stage(monkeypatch) -> None:
+    """A successful lookup marks mx_ok and proceeds to SMTP."""
+    monkeypatch.setattr(
+        verifier, "resolve_mx", lambda domain: "aspmx.l.google.com"
+    )
+    monkeypatch.setattr(
+        verifier.smtplib, "SMTP", type("_P", (_FakeSMTP,), {"rcpt_code": 250})
+    )
+    result = verify("gbenavides@nunoa.cl", smtp_enabled=True)
+
+    assert result.mx_ok is True
+    assert result.status == VStatus.VALID
 
 
 class _FakeSMTP:
@@ -103,7 +142,7 @@ def smtp_code(monkeypatch):
     """Force verify()'s SMTP stage to return a given RCPT reply code."""
     def _apply(code: int) -> None:
         monkeypatch.setattr(
-            verifier.dns.resolver, "resolve", lambda *a, **k: [_FakeMX()]
+            verifier, "resolve_mx", lambda domain: "mx.example.cl"
         )
         monkeypatch.setattr(
             verifier.smtplib,
