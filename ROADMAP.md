@@ -33,6 +33,28 @@ Chilean (.cl) data.
       another agent, hence 0.2 rather than 1.0).
 - [x] README polish matching `MuniANCI`'s branding style: centered logo +
       title, badge row (version, license, platform, stack).
+- [x] GitHub topics refined 8 → 10 (added `desktop-app`, `govtech`),
+      staying inside global CLAUDE.md's 6-10 best-practice range —
+      verified real `/topics/<name>` populated counts before committing
+      (desktop-app 15,506; govtech 395).
+- [x] README: added personal-credit + audience framing paragraph
+      ("Desarrollado por Felipe Carvajal Brown, investigador
+      independiente, para quienes construyen herramientas de
+      civic-tech, govtech u OSINT...").
+- [x] README: added "Aviso legal / uso responsable" section (no
+      malicious use; project reserves the right to report abuse/pursue
+      legal action) — disclaimer text, not legal advice; have a lawyer
+      review if it needs to be enforceable.
+- [x] README: added explicit "Licencia" section (previously only a
+      badge, no callout).
+- [x] README: added 5th signature badge (`alcance: solo .cl`).
+- [x] Credit fix: replaced "Instituto Igualdad" with Felipe Carvajal
+      Brown (personal, not institutional credit) everywhere it appeared
+      — app window title (`app/ui/main_window.py`), Qt organization
+      name (`app/main.py`), installer publisher + welcome text
+      (`RadarCL.iss`), and the README line above.
+- [x] Screenshot: considered, decided against — Felipe called it not
+      needed; README stays text-only.
 
 **Relevant ADRs:** [0001](docs/adr/0001-pyside6-gui-stack.md) (why it's a
 desktop app, not a web tool — shapes how the README should pitch it),

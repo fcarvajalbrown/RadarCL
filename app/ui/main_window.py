@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         """Initialise window and build UI."""
         super().__init__()
-        self.setWindowTitle("RadarCL — Área de Innovación Tecnológica · Instituto Igualdad")
+        self.setWindowTitle("RadarCL — Felipe Carvajal Brown, Investigador Independiente")
         self._apply_screen_size()
         self._build_ui()
 

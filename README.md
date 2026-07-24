@@ -7,6 +7,7 @@
 ![licencia](https://img.shields.io/badge/licencia-Apache%202.0-green)
 ![plataforma](https://img.shields.io/badge/plataforma-Windows-slate)
 ![tecnología](https://img.shields.io/badge/tecnolog%C3%ADa-Python%20%7C%20PySide6-blue)
+![alcance](https://img.shields.io/badge/alcance-solo%20.cl-orange)
 </div>
 
 Rastreador asíncrono y verificador multietapa para descubrir contactos de
@@ -21,8 +22,12 @@ verificación por etapas (sintaxis → MX → SMTP).
 
 Se distribuye como aplicación de escritorio en PySide6 para usuarios no
 técnicos, pero `app/core/` es Python/asyncio puro sin dependencia de Qt y
-puede reutilizarse por separado — ver `CLAUDE.md` para el detalle de la
-arquitectura.
+puede reutilizarse por separado (ver `CLAUDE.md` para el detalle de la
+arquitectura).
+
+Desarrollado por Felipe Carvajal Brown, investigador independiente, para
+quienes construyen herramientas de civic-tech, govtech u OSINT sobre
+datos chilenos (`.cl`).
 
 ## Instalación
 ```bash
@@ -56,3 +61,17 @@ python -m app.main
 
 Los planes a futuro están en [ROADMAP.md](ROADMAP.md), con las decisiones
 de diseño registradas en [docs/adr/](docs/adr/).
+
+## Aviso legal / uso responsable
+
+RadarCL está pensado para investigación OSINT legítima: verificación de
+contactos públicos, due diligence y trabajo de civic-tech/govtech. No está
+autorizado su uso para envío masivo de correo no solicitado (spam), acoso,
+ni ningún otro fin malicioso. El uso indebido de esta herramienta es
+responsabilidad exclusiva de quien la ejecuta; el proyecto se reserva el
+derecho de reportar abusos y de iniciar las acciones legales que
+correspondan.
+
+## Licencia
+
+Apache 2.0. Ver [LICENSE](LICENSE).

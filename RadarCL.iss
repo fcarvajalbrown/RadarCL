@@ -11,7 +11,7 @@
 
 #define AppName "RadarCL"
 #define AppVersion "1.0"
-#define AppPublisher "Instituto Igualdad - Área de Innovación Tecnológica"
+#define AppPublisher "Felipe Carvajal Brown"
 #define AppURL "https://github.com/fcarvajalbrown/RadarCL"
 #define AppExeName "RadarCL.exe"
 #define AppDescription "Chilean email discovery and verification tool"
@@ -98,5 +98,5 @@ Filename: "{app}\{#AppExeName}"; \
 Type: filesandordirs; Name: "{userappdata}\.radarcl"
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nRadarCL is a professional email discovery and verification tool for Chilean websites, developed by Instituto Igualdad.%n%nClick Next to continue.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nRadarCL is a professional email discovery and verification tool for Chilean websites, developed by Felipe Carvajal Brown.%n%nClick Next to continue.
 FinishedLabel=RadarCL has been installed successfully.%n%nYou can find it in your Start Menu or launch it now using the checkbox below.

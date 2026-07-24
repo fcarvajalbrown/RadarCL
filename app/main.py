@@ -20,7 +20,7 @@ def main() -> None:
     """Initialise Qt application and show main window."""
     app = QApplication(sys.argv)
     app.setApplicationName("RadarCL")
-    app.setOrganizationName("Área de Innovación Tecnológica - Instituto Igualdad")
+    app.setOrganizationName("Felipe Carvajal Brown - Investigador Independiente")
     app.setWindowIcon(QIcon(str(_assets_path() / 'icon.ico')))
     window = MainWindow()
     window.show()
