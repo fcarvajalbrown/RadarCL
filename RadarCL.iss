@@ -1,20 +1,27 @@
 ; RadarCL Inno Setup Script
-; Builds a professional Windows installer for RadarCL v1.0
+;
+; Wizard text is Spanish because it is user-facing, per the language rule
+; in CLAUDE.md. Directives, comments and identifiers stay English.
+;
+; AppVersion tracks pyproject.toml. Bump both together — Windows uses
+; AppVersion to decide whether an install is an upgrade.
 ;
 ; Requirements:
 ;   - Inno Setup 6.x (https://jrsoftware.org/isinfo.php)
-;   - dist\RadarCL.exe must exist (run pyinstaller RadarCL.spec first)
+;   - dist\RadarCL.exe must exist (run pyinstaller first; no .spec is
+;     committed, it is gitignored)
 ;
 ; Build:
-;   Open this file in Inno Setup Compiler and click Build > Compile
-;   Output: installer\RadarCL-v1.0-Setup.exe
+;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" RadarCL.iss
+;   Output: installer\RadarCL-v0.3.5-Setup.exe (gitignored — attach it to
+;   a GitHub Release rather than committing it)
 
 #define AppName "RadarCL"
-#define AppVersion "1.0"
+#define AppVersion "0.3.5"
 #define AppPublisher "Felipe Carvajal Brown"
 #define AppURL "https://github.com/fcarvajalbrown/RadarCL"
 #define AppExeName "RadarCL.exe"
-#define AppDescription "Chilean email discovery and verification tool"
+#define AppDescription "Descubrimiento y verificacion de correos .cl"
 
 [Setup]
 AppId={{B4F2A1C3-9E87-4D56-A023-FC1234567890}
@@ -34,7 +41,7 @@ AllowNoIcons=yes
 
 ; Output
 OutputDir=installer
-OutputBaseFilename=RadarCL-v1.0-Setup
+OutputBaseFilename=RadarCL-v{#AppVersion}-Setup
 SetupIconFile=assets\icon.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 
@@ -62,11 +69,11 @@ DisableReadyPage=no
 DisableFinishedPage=no
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Tasks]
-Name: "desktopicon";   Description: "Create a &desktop shortcut";    GroupDescription: "Additional icons:"; Flags: unchecked
-Name: "startmenuicon"; Description: "Create a &Start Menu shortcut"; GroupDescription: "Additional icons:";
+Name: "desktopicon";   Description: "Crear un acceso directo en el &Escritorio"; GroupDescription: "Accesos directos:"; Flags: unchecked
+Name: "startmenuicon"; Description: "Crear un acceso directo en el &menú Inicio"; GroupDescription: "Accesos directos:";
 
 [Files]
 ; Main executable
@@ -81,8 +88,8 @@ Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
 
 [Icons]
 ; Start Menu
-Name: "{group}\{#AppName}";           Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\assets\icon.ico"
-Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
+Name: "{group}\{#AppName}";              Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\assets\icon.ico"
+Name: "{group}\Desinstalar {#AppName}";  Filename: "{uninstallexe}"
 
 ; Desktop (optional)
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\assets\icon.ico"; Tasks: desktopicon
@@ -90,7 +97,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename:
 [Run]
 ; Offer to launch after install
 Filename: "{app}\{#AppExeName}"; \
-    Description: "Launch {#AppName} now"; \
+    Description: "Abrir {#AppName} ahora"; \
     Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
@@ -98,5 +105,5 @@ Filename: "{app}\{#AppExeName}"; \
 Type: filesandordirs; Name: "{userappdata}\.radarcl"
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nRadarCL is a professional email discovery and verification tool for Chilean websites, developed by Felipe Carvajal Brown.%n%nClick Next to continue.
-FinishedLabel=RadarCL has been installed successfully.%n%nYou can find it in your Start Menu or launch it now using the checkbox below.
+WelcomeLabel2=Se instalará [name/ver] en tu computador.%n%nRadarCL busca y verifica contactos de correo público en sitios web chilenos (.cl). Desarrollado por Felipe Carvajal Brown.%n%nPulsa Siguiente para continuar.
+FinishedLabel=RadarCL quedó instalado.%n%nLo encontrarás en el menú Inicio, o puedes abrirlo ahora marcando la casilla de abajo.

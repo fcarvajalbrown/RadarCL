@@ -44,9 +44,67 @@ the regenerated `vendor/`, `SHA256SUMS.txt` and `requirements-core.lock`.
 A `vendor/` that disagrees with `requirements-core.txt` is a real failure
 mode — `--check` verifies integrity, not currency.
 
-Packaging (not part of normal dev loop): PyInstaller builds `dist/RadarCL.exe` (no
-`.spec` file is committed — generate one with `pyinstaller` before building); the Inno
-Setup script `RadarCL.iss` then wraps that exe into `installer/RadarCL-v1.0-Setup.exe`.
+## Releases
+
+**Cut a new installer on every 0.1 version bump** — v0.4, v0.5, v0.6 and
+so on up to v1.0. Not on 0.05 increments: those are code milestones, not
+distribution events, and rebuilding a 57 MB binary for each one is waste.
+v0.3.5 got an installer anyway because Felipe asked for one directly; that
+was an explicit exception, not the rule.
+
+Never commit the build output. `dist/` and `installer/` are gitignored.
+Committing them once pushed this repository past 110 MB and had to be
+undone by rewriting history — the artifacts ship as binaries attached to a
+GitHub Release instead.
+
+**1. Bump the version in all four places.** They drift silently otherwise,
+and Windows uses `AppVersion` to decide whether an install is an upgrade:
+
+| File | What to change |
+|---|---|
+| `pyproject.toml` | `version = "0.4.0"` |
+| `app/__init__.py` | `__version__ = "0.4.0"` — this is what the CLI's `--version`, the JSON export and the HTML report all stamp |
+| `RadarCL.iss` | `#define AppVersion "0.4.0"`; `OutputBaseFilename` derives from it |
+| `README.md` | the `versión` badge URL, plus a new entry at the top of "Historial de versiones" |
+
+**2. Verify before building.** A broken build is worse than no release:
+
+```bash
+venv\Scripts\python.exe -m pytest -m "not smtp"
+venv\Scripts\python.exe scripts/vendor.py --check
+```
+
+**3. Build.** No `.spec` is committed (it is gitignored), so generate one:
+
+```bash
+venv\Scripts\pyinstaller.exe --noconfirm --onefile --windowed ^
+  --icon assets\icon.ico --add-data "assets;assets" ^
+  --name RadarCL app\main.py
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" RadarCL.iss
+```
+
+Output: `installer\RadarCL-v<version>-Setup.exe`. Run it once before
+publishing — PyInstaller builds fail at runtime, not at build time, and
+the frozen-asset path resolution (`sys._MEIPASS`) is exactly the kind of
+thing that only breaks in the packaged exe.
+
+**4. Publish.** Tag and Release, with the installer attached:
+
+```bash
+git tag -a v0.4.0 -m "RadarCL v0.4.0"
+git push origin v0.4.0
+gh release create v0.4.0 "installer\RadarCL-v0.4.0-Setup.exe" ^
+  --title "RadarCL v0.4.0" --notes-file <notes>
+```
+
+Release notes are user-facing, so Spanish, and they describe what changed
+for someone using the tool — not the commit log. Publishing is
+outward-facing and effectively irreversible, so ask Felipe before creating
+the Release unless he asked for it in that same turn.
+
+Antivirus false positives on the PyInstaller exe are a known, unresolved
+issue — see `docs/research/oss-tooling.md` and the "Beyond v1.0" section of
+[ROADMAP.md](ROADMAP.md).
 
 ## Language
 

@@ -19,6 +19,13 @@ build/
 # PyInstaller output
 *.app
 
+# Build artefacts — never commit these. The .exe and the Inno Setup
+# installer are ~57 MB each; committing them once already pushed the
+# repository past 110 MB and required rewriting history to undo. They
+# ship as binaries attached to a GitHub Release instead.
+dist/
+installer/
+
 # Pytest
 .pytest_cache/
 htmlcov/
