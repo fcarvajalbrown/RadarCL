@@ -96,6 +96,26 @@ def save_email(
     conn.close()
 
 
+def update_email_status(session_id: int, email: str, status: str) -> None:
+    """
+    Update the status of an already-saved email record.
+
+    Parameters
+    ----------
+    session_id : int
+    email : str
+    status : str
+        One of: 'unknown', 'valid', 'invalid'.
+    """
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE emails SET status = ? WHERE session_id = ? AND email = ?",
+        (status, session_id, email)
+    )
+    conn.commit()
+    conn.close()
+
+
 def load_session(session_id: int) -> list[dict]:
     """
     Load all emails for a given session.

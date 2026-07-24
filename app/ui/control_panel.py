@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt, QThread
 from PySide6.QtGui import QFont, QIcon
 
+from app.core import session
 from app.core.hw_profile import get_hw_profile
 from app.core.pattern_generator import COMMON_PATTERNS
 from app.core.seed_discoverer import discover_seeds
@@ -110,6 +111,7 @@ class ControlPanel(QWidget):
         self._discovery_worker: _DiscoveryWorker | None = None
         self._collected_emails: list[tuple[str, str]] = []
         self._discovered_seeds: list[str] = []
+        self._session_id: int | None = None
         self._is_running: bool = False
         self._is_paused: bool = False
         self._force_quit: bool = False
@@ -558,6 +560,9 @@ class ControlPanel(QWidget):
         self._is_running = True
         self._is_paused = False
 
+        target = str(self._domain_input.text()).strip() or "any .cl"
+        self._session_id = session.new_session(target, all_seeds)
+
         self._set_running_state(True)
         self._status_label.setText("Crawling…")
 
@@ -702,13 +707,15 @@ class ControlPanel(QWidget):
     # ── Worker signal handlers
 
     def _on_email_found(self, email: str, source: str) -> None:
-        """Store and forward discovered email."""
+        """Store, persist, and forward discovered email."""
         self._collected_emails.append((email, source))
+        session.save_email(self._session_id, email, source)
         self.email_discovered.emit(email, source)
 
     def _on_candidate_found(self, email: str, source: str) -> None:
-        """Store and forward pattern-generated candidate."""
+        """Store, persist, and forward pattern-generated candidate."""
         self._collected_emails.append((email, source))
+        session.save_email(self._session_id, email, source)
         self.candidate_discovered.emit(email, source)
 
     def _on_crawl_finished(self) -> None:
@@ -733,8 +740,10 @@ class ControlPanel(QWidget):
         self._status_label.setText(f"Checking {done}/{total} emails…")
 
     def _on_verify_finished(self, results: list) -> None:
-        """Forward results and auto-export after verification."""
+        """Persist statuses, forward results, and auto-export."""
         self._progress.setVisible(False)
+        for r in results:
+            session.update_email_status(self._session_id, r['email'], r['status'])
         valid = sum(1 for r in results if r.get('status') == 'valid')
         self._status_label.setText(
             f"Done. {valid} valid emails found.\n"

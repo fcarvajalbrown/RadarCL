@@ -4,22 +4,33 @@ Phase-based, not calendar-dated. Status values: `Not Started`, `In Progress`,
 `Blocked`, `Done`.
 
 ## Phase 0 — Discoverability & branding
-**Status:** In Progress
+**Status:** Done
 
 Make RadarCL findable and legible to the audience it's actually useful to:
 developers building civic-tech, govtech, or OSINT-style tooling around
 Chilean (.cl) data.
 
-- [ ] README rewrite: lead with what RadarCL does technically (async .cl
+- [x] README rewrite: lead with what RadarCL does technically (async .cl
       crawler → extraction/de-obfuscation → cascading seed discovery →
       staged verification), then who it's for.
-- [ ] GitHub repo description: one keyword-forward sentence, ~150 chars.
-- [ ] GitHub topics: 6-10, mixing broad (`python`, `osint`, `web-scraping`)
-      and narrow (`chile`, `email-verification`, `pyside6`) terms — verify
-      real `/topics/<name>` repo counts before committing to the list rather
-      than assuming a topic slug resolving means it's populated.
-- [ ] Logo: embed the existing `assets/icon.svg` as-is in the README header
-      — no edits to the file itself.
+- [x] GitHub repo description: one keyword-forward sentence, ~150 chars.
+- [x] GitHub topics: 8, mixing broad (`python`, `osint`, `web-scraping`,
+      `dns`) and narrow (`chile`, `email-verification`, `pyside6`,
+      `certificate-transparency`) terms — verified real `/topics/<name>`
+      repo counts (213-799k) before committing, per the researched guidance
+      above.
+- [x] Logo: embedded the existing `assets/icon.svg` as-is in the README
+      header — no edits to the file itself.
+- [x] License: added `LICENSE` (Apache 2.0) and set it in `pyproject.toml`,
+      after weighing permissive vs. copyleft options (see
+      `docs/research/oss-tooling.md`'s Subfinder-vs-theHarvester precedent)
+      — this is a project decision, not a legal opinion; consult a lawyer
+      before treating it as final given the personal-data angle.
+- [x] Version: bumped `pyproject.toml` to `0.2.0` to match the actual
+      current state (README's own roadmap section is due for a rewrite by
+      another agent, hence 0.2 rather than 1.0).
+- [x] README polish matching `MuniANCI`'s branding style: centered logo +
+      title, badge row (version, license, platform, stack).
 
 **Relevant ADRs:** [0001](docs/adr/0001-pyside6-gui-stack.md) (why it's a
 desktop app, not a web tool — shapes how the README should pitch it),

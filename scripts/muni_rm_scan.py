@@ -159,6 +159,7 @@ async def _scan_domain(
     hw: HWProfile,
     max_pages: int,
     max_depth: int,
+    verify_mx: bool = True,
 ) -> list[MuniResult]:
     """Discover seeds, crawl, extract, and verify emails for one domain."""
     print(f"[{comuna}] discovering seeds for {domain}...")
@@ -195,11 +196,27 @@ async def _scan_domain(
 
     results = []
     for email, source in found.items():
-        vr = verify(email, smtp_enabled=False)
-        status = vr.status.name.lower()
-        results.append(MuniResult(comuna, domain, email, source, status, vr.error))
+        if not verify_mx:
+            results.append(MuniResult(comuna, domain, email, source, "unverified", ""))
+            continue
+        try:
+            vr = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None, verify, email, False, None
+                ),
+                timeout=10.0,
+            )
+            status = vr.status.name.lower()
+            error = vr.error
+        except asyncio.TimeoutError:
+            status = "unknown"
+            error = "verification timed out"
+        results.append(MuniResult(comuna, domain, email, source, status, error))
 
     return results
+
+
+DOMAIN_TIMEOUT_S = 90.0
 
 
 async def run(
@@ -208,8 +225,11 @@ async def run(
     concurrent_sites: int,
     out_path: Path,
     only: list[str] | None = None,
+    verify_mx: bool = True,
 ) -> None:
-    """Scan RM_TARGETS (or a subset via `only`) concurrently and write one CSV."""
+    """Scan RM_TARGETS (or a subset via `only`) concurrently, writing each
+    domain's results to CSV as soon as it finishes (not just at the end),
+    so progress survives even if a later domain hangs or the run is killed."""
     hw = get_hw_profile()
     print(
         f"Hardware tier: {hw.tier} "
@@ -224,10 +244,18 @@ async def run(
         if missing:
             print(f"Warning: unknown --only names ignored: {sorted(missing)}")
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_file = open(out_path, 'w', newline='', encoding='utf-8')
+    writer = csv.writer(csv_file)
+    writer.writerow(['comuna', 'domain', 'email', 'source', 'status', 'error'])
+    csv_file.flush()
+    write_lock = asyncio.Lock()
+    total_written = 0
+
     semaphore = asyncio.Semaphore(concurrent_sites)
-    all_results: list[MuniResult] = []
 
     async def bound_scan(comuna: str, domain: str | None) -> None:
+        nonlocal total_written
         async with semaphore:
             resolved = domain
             if resolved is None:
@@ -236,23 +264,27 @@ async def run(
                     print(f"[{comuna}] could not resolve a domain, skipping")
                     return
                 print(f"[{comuna}] resolved domain: {resolved}")
-            results = await _scan_domain(comuna, resolved, hw, max_pages, max_depth)
-            all_results.extend(results)
+            try:
+                results = await asyncio.wait_for(
+                    _scan_domain(comuna, resolved, hw, max_pages, max_depth, verify_mx),
+                    timeout=DOMAIN_TIMEOUT_S,
+                )
+            except asyncio.TimeoutError:
+                print(f"[{comuna}] timed out after {DOMAIN_TIMEOUT_S:.0f}s, skipping")
+                return
 
-    await asyncio.gather(*[bound_scan(c, d) for c, d in targets])
+            async with write_lock:
+                for r in results:
+                    writer.writerow([r.comuna, r.domain, r.email, r.source, r.status, r.error])
+                csv_file.flush()
+                total_written += len(results)
 
-    _write_csv(all_results, out_path)
-    print(f"\nDone. {len(all_results)} emails across {len(targets)} targets written to {out_path}")
+    try:
+        await asyncio.gather(*[bound_scan(c, d) for c, d in targets])
+    finally:
+        csv_file.close()
 
-
-def _write_csv(results: list[MuniResult], path: Path) -> None:
-    """Write all collected results to a single CSV."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(['comuna', 'domain', 'email', 'source', 'status', 'error'])
-        for r in results:
-            writer.writerow([r.comuna, r.domain, r.email, r.source, r.status, r.error])
+    print(f"\nDone. {total_written} emails across {len(targets)} targets written to {out_path}")
 
 
 def _default_out_path() -> Path:
@@ -282,11 +314,24 @@ def main() -> None:
         '--only', type=str, default=None,
         help='Comma-separated comuna names to scan (default: all 53)',
     )
+    parser.add_argument(
+        '--no-mx-verify', action='store_true',
+        help=(
+            'Skip the MX-lookup verification stage and just record '
+            'syntax-checked emails as "unverified". Use this when MX/DNS '
+            'lookups are unreliable in the current network environment '
+            '(verification would otherwise cost ~5-10s per email and can '
+            'cause high-yield domains to hit the per-domain timeout).'
+        ),
+    )
     args = parser.parse_args()
 
     out_path = args.out or _default_out_path()
     only = [s.strip() for s in args.only.split(',')] if args.only else None
-    asyncio.run(run(args.max_pages, args.depth, args.concurrent_sites, out_path, only))
+    asyncio.run(run(
+        args.max_pages, args.depth, args.concurrent_sites, out_path, only,
+        verify_mx=not args.no_mx_verify,
+    ))
 
 
 if __name__ == '__main__':
