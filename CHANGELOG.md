@@ -8,6 +8,75 @@ Cada sección de este archivo es, tal cual, el texto de las notas del
 release correspondiente. Cómo se escribe una entrada nueva está en
 [docs/release-notes.md](docs/release-notes.md).
 
+## [0.4.0] - 2026-07-24
+
+De las ocho fuentes chilenas que RadarCL tenía escritas a mano, cuatro
+habían dejado de ser lo que decían. munitel.cl vende departamentos.
+transparencia.cl es un blog. cna.cl es un centro de arbitrajes y no la
+comisión de acreditación, y fach.cl, que además es la Fuerza Aérea, ni
+siquiera responde. Nadie se había dado cuenta porque nada las miraba.
+Ahora hay una prueba que las vuelve a pedir una por una, y crt.sh, que
+estuvo caído unos quince minutos mientras se escribía esta versión, tiene
+por fin un reemplazo.
+
+### Añadido
+- CertSpotter como respaldo de crt.sh dentro de la primera etapa del
+  descubrimiento de semillas. Antes una caída de crt.sh se tragaba la
+  etapa completa y no decía nada. Sin clave de API y sin registro
+  ([ADR-0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)).
+- La cadena se detiene en la primera fuente que devuelve algo. Una fuente
+  que responde sin registros ya respondió, así que devuelve vacío en vez
+  de fallar; solo cuando todas fallan hay error, la misma distinción que
+  [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md) hizo para
+  el DNS.
+- `leylobby.gob.cl` entre las fuentes de gobierno. La Ley del Lobby obliga
+  a publicar a los sujetos pasivos con nombre e institución, que es lo
+  más cercano que hay en Chile a un directorio público de funcionarios.
+- `sinim.gov.cl` y `portaltransparencia.cl` para municipios,
+  `consejoderectores.cl` y `anid.cl` para universidades,
+  `chilecompra.cl`, `sofofa.cl` y `ccs.cl` para empresas.
+- Una prueba marcada `smtp` que vuelve a descargar cada fuente curada. El
+  marcador significa "necesita internet", así que `pytest -m "not smtp"`
+  sigue corriendo sin red.
+
+### Eliminado
+- `transparencia.cl`, `munitel.cl`, `cna.cl` y `fach.cl`. Mandar el
+  rastreador a un portal inmobiliario es peor que no mandarlo a ninguna
+  parte.
+
+### Cambiado
+- El tiempo de espera de crt.sh baja de 30 a 20 segundos. Una consulta
+  fría de crt.sh tardó 76,7 y 60,3 segundos, y una ya en caché, uno; no
+  hay plazo razonable que cubra las dos. Veinte segundos cubren la caché
+  y le pasan el resto a CertSpotter, que contesta en 0,6. El costo está
+  dicho sin adornos en el ADR: en un dominio frío se cambian los trece
+  nombres de crt.sh por los cuatro de CertSpotter.
+- El descubridor de semillas se identifica con un User-Agent de
+  navegador. `portaltransparencia.cl` y `anid.cl` respondían 403 al
+  anterior.
+- MerkleMap quedó descartado y está anotado como tal para que nadie lo
+  reintente: responde 401 sin clave y su único plan cuesta 49 euros al
+  mes, sin capa gratuita de API.
+
+### Corregido
+- Un rastreo de `bcn.cl` recibía las fuentes de empresas. La Biblioteca
+  del Congreso Nacional es un organismo de gobierno y faltaba en la tabla
+  de palabras clave.
+- `PRD.md` se movió a `docs/` y dejó enlaces rotos en `ROADMAP.md`,
+  `CONTRIBUTING.md` y en el propio documento.
+
+### Antes de instalar
+El ejecutable no está firmado digitalmente, así que Windows SmartScreen
+puede advertir al abrirlo. Algunos antivirus marcan como sospechoso
+cualquier ejecutable empaquetado con PyInstaller, sin que haya nada
+sospechoso adentro; es un problema conocido del empaquetado y está
+anotado en la hoja de ruta. El código está completo en este repositorio
+para quien prefiera compilarlo por su cuenta.
+
+RadarCL es para investigación OSINT legítima. No está autorizado su uso
+para envío masivo de correo no solicitado, acoso, ni ningún otro fin
+malicioso.
+
 ## [0.3.5] - 2026-07-24
 
 Un rastreo de nunoa.cl encontró dieciséis direcciones municipales

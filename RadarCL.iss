@@ -13,11 +13,11 @@
 ;
 ; Build:
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" RadarCL.iss
-;   Output: installer\RadarCL-v0.3.5-Setup.exe (gitignored — attach it to
+;   Output: installer\RadarCL-v0.4.0-Setup.exe (gitignored — attach it to
 ;   a GitHub Release rather than committing it)
 
 #define AppName "RadarCL"
-#define AppVersion "0.3.5"
+#define AppVersion "0.4.0"
 #define AppPublisher "Felipe Carvajal Brown"
 #define AppURL "https://github.com/fcarvajalbrown/RadarCL"
 #define AppExeName "RadarCL.exe"

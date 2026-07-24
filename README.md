@@ -3,7 +3,7 @@
 
 # RadarCL
 
-![versión](https://img.shields.io/badge/versi%C3%B3n-0.3.5-blue)
+![versión](https://img.shields.io/badge/versi%C3%B3n-0.4.0-blue)
 ![licencia](https://img.shields.io/badge/licencia-Apache%202.0-green)
 ![plataforma](https://img.shields.io/badge/plataforma-Windows%20(GUI)%20%7C%20CLI%20sin%20Qt-slate)
 ![tecnología](https://img.shields.io/badge/tecnolog%C3%ADa-Python%20%7C%20PySide6-blue)
@@ -14,9 +14,10 @@ Rastreador asíncrono y verificador multietapa para descubrir contactos de
 correo público en sitios web chilenos (`.cl`). Automatiza el proceso que
 las herramientas de OSINT y civic-tech normalmente tienen que armar a mano
 para este dominio: descubrimiento de semillas sensible al tipo de entidad
-(registros de Certificate Transparency vía crt.sh, verificación de
-actividad por DNS, puntuación semántica de enlaces y fuentes chilenas de
-alto valor ya conocidas), un rastreador por fases que se mantiene acotado
+(registros de Certificate Transparency vía crt.sh, con CertSpotter de
+respaldo cuando crt.sh no contesta, verificación de actividad por DNS,
+puntuación semántica de enlaces y fuentes chilenas curadas), un
+rastreador por fases que se mantiene acotado
 a `.cl` por defecto, extracción de correos con desofuscación, y
 verificación por etapas (sintaxis → MX → SMTP).
 
