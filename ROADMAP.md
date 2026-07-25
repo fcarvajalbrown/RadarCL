@@ -206,21 +206,44 @@ rather than maintained).
       — direct theHarvester parity, plausible fit for `.cl`
       government/institutional contacts who publish PGP keys.
 
-### v0.50 — `.com` domain support
-**Status:** Not Started
-- [ ] `.com` domain support for Chilean companies with international
-      domains (e.g. `@bhp.com`, `@codelco.com`). Needs its own ADR before
-      implementation — this revisits, not extends,
-      [ADR-0003](docs/adr/0003-crawl-phase1-phase2-scope.md)'s `.cl`-only
-      email filter, and per that ADR's own rules a changed decision gets a
-      new ADR, never an edit to 0003 itself.
-- [ ] Read [docs/research/dotcom-attribution.md](docs/research/dotcom-attribution.md)
-      before scoping this. Measured on 2026-07-24: a `.com` address carries
-      no country at all — RDAP returns no registrant country for `bhp.com`,
-      `codelco.com` or `falabella.com`, and `bhp.cl` does not exist — so
-      this is not a filter change. The country signal lives on the page an
-      address was found on, not in the address, which moves the unit of
-      attribution and is the thing the ADR has to decide.
+### v0.50 — page evidence, and the `.com` question closed
+**Status:** Done
+- [x] The filter change this item asked for does not ship, and the
+      measurement that closed it does. Chilean `.com` sites yield 0.00-0.05
+      addresses per page; `codelco.com`'s only two finds were `.cl`
+      addresses already collected today. The one target where a `.com`
+      filter pays off is `teck.com`, the Canadian one. "Add `.com`" was
+      intuitive and would have imported a foreign address book while adding
+      nothing on Codelco, Falabella or Sonda.
+- [x] `app/core/provenance.py`: `chile_evidence` reports which Chilean
+      signals a page carried — `lang-es-cl`, `rut`, `phone-cl`, `lexicon`,
+      `path-cl`. It is a flag on `Discovery`, never a filter: at 57% recall
+      a filter would silently discard real addresses on 43% of
+      Chilean-owned sites.
+- [x] The claim is about the **page**, not about who owns the company.
+      `teck.com` fires because its contact page lists a Santiago office,
+      and that is correct. Six further signals were tested and rejected,
+      including `hreflang="es-CL"`, which in the sample fired only on a US
+      company.
+- [x] The `.cl` filter on scraped addresses is unchanged. A non-`.cl`
+      address is emitted only when the user names that domain, which the
+      pattern-generation path had been doing silently since it shipped —
+      `PRD.md` called the filter a permanent boundary and the code had
+      never enforced it.
+- [x] Evidence reaches the JSON and HTML exports. CSV keeps the columns
+      [ADR-0010](docs/adr/0010-export-contents-differ-by-format.md) gave
+      it, and the CLI's stdout keeps its three-field piping contract.
+- [x] `python-stdnum` and `phonenumbers` vendored per
+      [ADR-0008](docs/adr/0008-vendored-core-dependencies.md).
+      libphonenumber accepts the US ZIP+4 `99201-0301` as a Chilean mobile,
+      which is guarded explicitly.
+
+**Relevant ADRs:** [0014](docs/adr/0014-country-is-never-inferred-from-a-com-address.md)
+(why a `.com` address carries no country, and why the remedy annotates
+rather than decides). Narrows
+[0003](docs/adr/0003-crawl-phase1-phase2-scope.md) rather than superseding
+it. Evidence and sample limits are in
+[docs/research/dotcom-attribution.md](docs/research/dotcom-attribution.md).
 
 ### v0.55 — Verifier Stage 4 resolution
 **Status:** Not Started

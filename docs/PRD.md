@@ -43,9 +43,22 @@ internal use.
 ## Non-goals
 
 - **Not a general-purpose scraper.** The `.cl`-only email filter
-  ([ADR-0003](adr/0003-crawl-phase1-phase2-scope.md)) is a permanent
-  scope boundary, not a placeholder — even Phase-2 crawling of non-`.cl`
-  pages only exists to *find* `.cl` addresses linked from them.
+  ([ADR-0003](adr/0003-crawl-phase1-phase2-scope.md)) is a scope boundary,
+  not a placeholder — even Phase-2 crawling of non-`.cl` pages only exists
+  to *find* `.cl` addresses linked from them. It applies to every address
+  RadarCL *scrapes*. It has never applied to pattern-*generated*
+  candidates, which take whatever domain the user names: this document
+  called the boundary permanent for two versions while the code emitted
+  `@bhp.com` candidates on request, and that gap is closed by being stated
+  rather than by removing the capability
+  ([ADR-0014](adr/0014-country-is-never-inferred-from-a-com-address.md)).
+- **Not a guess at nationality.** RadarCL does not infer a country from an
+  email address, and measurement says nothing else should either: a `.com`
+  address carries no country, and `.cl` is a strong convention rather than
+  proof, since NIC Chile lets any foreign person or company hold one.
+  Where a country claim is possible at all it belongs to the *page* an
+  address was found on, is reported as named evidence rather than a score,
+  and is never allowed to decide what gets collected.
 - **Not a hosted SaaS.** RadarCL ships as a local tool (Windows desktop
   `.exe` today, CLI mode from v0.30 onward) that the user runs themselves
   against their own network — not a service anyone can point at arbitrary
