@@ -99,6 +99,44 @@ def test_nonexistent_domain_short_circuits(monkeypatch) -> None:
         resolve_mx('thisdoesnotexist123456.cl')
 
 
+def test_every_nameserver_in_the_list_is_reachable(monkeypatch) -> None:
+    """
+    A dead first nameserver must not consume the whole transport budget.
+
+    dnspython's `lifetime` bounds the entire question rather than each
+    server, so `timeout == lifetime` makes the second entry in
+    `_PUBLIC_NAMESERVERS` unreachable by construction: the first server's
+    timeout exhausts the lifetime. Verified live against 192.0.2.1
+    (TEST-NET-1, RFC 5737), which by definition never answers - the old
+    settings raised LifetimeTimeout without ever trying Cloudflare.
+
+    This asserts the arithmetic rather than the network: each server must
+    get a slice of the budget small enough that all of them fit.
+    """
+    captured: dict[str, float] = {}
+
+    class _Resolver:
+        def __init__(self) -> None:
+            self.nameservers = ['8.8.8.8', '1.1.1.1']
+            self.timeout = 0.0
+            self.lifetime = 0.0
+
+        def resolve(self, domain: str, rdtype: str):
+            captured['timeout'] = self.timeout
+            captured['lifetime'] = self.lifetime
+            captured['servers'] = len(self.nameservers)
+            raise dns_lookup.dns.resolver.NoAnswer()
+
+    monkeypatch.setattr(dns_lookup.dns.resolver, 'Resolver', _Resolver)
+    monkeypatch.setattr(
+        dns_lookup, '_implicit_mx', lambda domain, resolver: domain
+    )
+
+    dns_lookup._dns_query('nunoa.cl', ['8.8.8.8', '1.1.1.1'])
+
+    assert captured['timeout'] * captured['servers'] <= captured['lifetime']
+
+
 def test_doh_parses_lowest_preference_record(monkeypatch) -> None:
     """The DoH transport picks the lowest-preference MX host."""
     class _Response:

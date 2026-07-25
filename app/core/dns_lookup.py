@@ -71,7 +71,19 @@ def _dns_query(domain: str, nameservers: list[str] | None = None) -> str:
     resolver = dns.resolver.Resolver()
     if nameservers is not None:
         resolver.nameservers = list(nameservers)
-    resolver.timeout = _TIMEOUT
+
+    # dnspython's `lifetime` is the budget for the *whole* question, not per
+    # nameserver, so setting it equal to `timeout` means the second server is
+    # never reached: the first one's timeout exhausts the lifetime and the
+    # query raises. `_PUBLIC_NAMESERVERS` lists Google and Cloudflare, and
+    # under the old settings Cloudflare was never once consulted.
+    #
+    # Splitting the transport's budget across its servers keeps the total
+    # unchanged - each transport still costs at most `_TIMEOUT`, three of
+    # them at most 15s - while making every server in the list reachable.
+    # Raising the lifetime instead would have fixed the redundancy by making
+    # a dead resolver cost 5s per server before the next transport starts.
+    resolver.timeout = _TIMEOUT / max(1, len(resolver.nameservers))
     resolver.lifetime = _TIMEOUT
 
     try:
