@@ -258,17 +258,47 @@ it. Evidence and sample limits are in
       HTML, the split ADR-0010 already drew
       ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)).
 
-### v0.60 — PGP keyserver source
+### v0.60 — Reaching the right domain
 **Status:** Not Started
-- [ ] Add PGP keyserver lookup as a new email source in `seed_discoverer.py`
-      — direct theHarvester parity, plausible fit for `.cl`
-      government/institutional contacts who publish PGP keys.
-- [ ] Measure recovered addresses per page spent before building it. This
-      was v0.45 until v0.50 shipped, which left an unstarted version
-      sitting behind a released one; renumbered rather than left as a gap.
-      The v0.40 precedent applies directly: a new source that sounded
-      obvious returned zero addresses for any target
-      ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)).
+
+Two items about finding the target rather than crawling it. The first is
+measured and comes first for that reason; the second is not measured at
+all, and [ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)
+is what happens when an obvious-sounding source ships unmeasured.
+
+- [ ] **Sibling `.cl` mail-domain hint.** When the user targets a non-`.cl`
+      domain, check whether `<base>.cl` has a mail-capable MX and say so.
+      [ADR-0018](docs/adr/0018-generation-stays-in-cl-and-a-guess-says-so.md)
+      closed `.com` in both directions, so this is the route that remains:
+      the Chilean staff of a multinational are usually reachable at its
+      `.cl`, which RadarCL already supports fully.
+
+      Measured 2026-07-25 over thirteen companies: **eight run a
+      mail-capable `<base>.cl`**, including four of the six foreign
+      multinationals with Chilean operations (`riotinto.cl`,
+      `mail.angloamerican.cl`, `emailproxy.teck.cl`, glencore). BHP, SQM,
+      LATAM, Albemarle and Sonda have none.
+
+      **The hint states a fact and claims no ownership.** One DNS query,
+      reported as "this domain exists and accepts mail", never as "this
+      belongs to the same company". EUIPO measured cybersquatting at 49%
+      of major brands with 26% of squatted domains on ccTLDs, so a
+      name match is not evidence of ownership. Self-declaration was
+      measured too and only half-confirms: 4 of 8 `.com` homepages link to
+      the `.cl`, and 2 more `.cl` domains redirect into the `.com`, giving
+      5 of 8 corroborated and 3 real-but-unconfirmed. That is why the
+      corroboration fetches are deliberately not part of this item: a hint
+      that is silent on 3 of 8 reads as broken.
+
+      Needs its own ADR before implementation, since where the judgement
+      sits is a decision and not a detail.
+- [ ] **PGP keyserver lookup** as a new email source in
+      `seed_discoverer.py` — direct theHarvester parity, plausible fit for
+      `.cl` government and institutional contacts who publish keys.
+- [ ] Measure recovered addresses per page spent before building the PGP
+      source. This was v0.45 until v0.50 shipped, which left an unstarted
+      version sitting behind a released one; renumbered rather than left
+      as a gap.
 
 ### v0.65 — Distributed crawling, part 1: job distribution
 **Status:** Not Started
