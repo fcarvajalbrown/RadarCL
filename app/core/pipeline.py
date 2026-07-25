@@ -8,11 +8,12 @@ this module may import Qt — see the layering rule in CLAUDE.md.
 
 import asyncio
 from dataclasses import dataclass
-from typing import AsyncGenerator, Callable, Iterator
+from typing import AsyncGenerator, Callable, Iterator, Sequence
 
 from app.core.crawler import Crawler
 from app.core.extractor import extract_emails
 from app.core.pattern_generator import generate_candidates
+from app.core.provenance import chile_evidence
 from app.core.verifier import verify, VStatus
 
 
@@ -38,10 +39,16 @@ class Discovery:
         Page the address was found on, or the page whose names produced it.
     generated : bool
         True if pattern-generated, False if scraped from the page.
+    evidence : tuple[str, ...]
+        Chilean-evidence signals found on `source_url` - see
+        `app.core.provenance`. Empty means no evidence was found, not that
+        the page is foreign, and it is a statement about the page rather
+        than about who owns the domain (ADR-0014).
     """
     email: str
     source_url: str
     generated: bool
+    evidence: tuple[str, ...] = ()
 
 
 async def crawl_and_extract(
@@ -69,6 +76,12 @@ async def crawl_and_extract(
     target_domain : str | None
         Restrict results to this email domain (with or without a leading
         '@'). None accepts any .cl address the extractor returns.
+
+        Naming a non-`.cl` domain here is the only way a non-`.cl` address
+        is ever produced, and only through `pattern` below, since the
+        scraped path stays `.cl`-only. RadarCL makes no claim that such an
+        address is Chilean; the caller asked for that domain by name, and
+        `Discovery.evidence` reports what the page showed (ADR-0014).
     pattern : str
         Optional pattern template, e.g. '{first}.{last}'. Requires
         target_domain; ignored without one, since a generated local part
@@ -111,20 +124,34 @@ async def crawl_and_extract(
         if on_page is not None:
             on_page(url, pages)
 
+        # Computed at most once per page, and only if the page yields an
+        # address: most crawled pages carry none, and this parses the HTML
+        # a second time. `None` is the sentinel because `()` is a real
+        # answer meaning "no evidence found".
+        page_evidence: tuple[str, ...] | None = None
+
         for record in extract_emails(html, url):
             email = record['email']
             if target and not email.endswith(target):
                 continue
             if email not in seen:
                 seen.add(email)
-                yield Discovery(email=email, source_url=url, generated=False)
+                if page_evidence is None:
+                    page_evidence = chile_evidence(html, url)
+                yield Discovery(
+                    email=email, source_url=url, generated=False,
+                    evidence=page_evidence,
+                )
 
         if pattern and target:
             for candidate in generate_candidates(html, pattern, target):
                 if candidate not in seen:
                     seen.add(candidate)
+                    if page_evidence is None:
+                        page_evidence = chile_evidence(html, url)
                     yield Discovery(
-                        email=candidate, source_url=url, generated=True
+                        email=candidate, source_url=url, generated=True,
+                        evidence=page_evidence,
                     )
 
         # Polite delay — keeps CPU and network load low.
@@ -132,7 +159,7 @@ async def crawl_and_extract(
 
 
 def verify_all(
-    emails: list[tuple[str, str]],
+    emails: Sequence[tuple],
     *,
     smtp_enabled: bool = True,
     api_key: str | None = None,
@@ -142,8 +169,11 @@ def verify_all(
 
     Parameters
     ----------
-    emails : list[tuple[str, str]]
-        (email_address, source_url) pairs.
+    emails : Sequence[tuple]
+        Either `(email, source_url)` or `(email, source_url, evidence)`,
+        where evidence is a `Discovery.evidence` tuple. Both shapes are
+        accepted because the `verify` subcommand reads bare addresses from
+        a file and has no page to draw evidence from.
     smtp_enabled : bool
         If False, skip the SMTP handshake stage.
     api_key : str | None
@@ -152,15 +182,24 @@ def verify_all(
     Yields
     ------
     dict
-        Keys: 'email', 'source', 'status', 'error'. 'status' is one of
-        'valid', 'invalid', 'unknown'. This is the shape
-        `exporter.export_valid()` and the GUI results table consume.
+        Keys: 'email', 'source', 'status', 'error', and 'evidence' only
+        when the input carried it. 'status' is one of 'valid', 'invalid',
+        'unknown'. This is the shape `exporter.export_valid()` and the GUI
+        results table consume.
+
+        The key is omitted rather than set to `[]` when no evidence was
+        supplied, because an empty list is a real answer meaning the page
+        was checked and showed nothing (ADR-0014). Absent means nobody
+        looked, and a consumer must not read the two the same way.
     """
-    for email, source in emails:
+    for email, source, *rest in emails:
         result = verify(email, smtp_enabled=smtp_enabled, api_key=api_key)
-        yield {
+        record = {
             'email': email,
             'source': source,
             'status': _STATUS_NAMES[result.status],
             'error': result.error,
         }
+        if rest:
+            record['evidence'] = list(rest[0])
+        yield record
