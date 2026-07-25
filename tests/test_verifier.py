@@ -192,12 +192,25 @@ def test_smtp_252_cannot_verify_is_unknown(smtp_code) -> None:
 
 
 @pytest.mark.smtp
-def test_smtp_valid_known_domain() -> None:
+def test_smtp_stage_runs_against_a_live_domain() -> None:
     """
-    Known live .cl domain should return VALID or UNKNOWN via SMTP.
-    UNKNOWN is acceptable — many servers block SMTP probing.
+    The pipeline reaches the SMTP stage against a real server and classifies
+    the reply. What that reply is, is not this test's business.
+
+    It used to assert that contacto@bcn.cl came back VALID or UNKNOWN, which
+    passed until the mailbox was retired and the server began answering 550.
+    The verifier was right and the test was wrong: it had outsourced its
+    assertion to whether a stranger's mailbox still existed, so a correct
+    INVALID read as a regression. What is ours to check is that syntax and MX
+    ran, that the handshake completed rather than raising, and that whatever
+    came back landed in one of the three buckets ADR-0009 defines.
     """
     result = verify("contacto@bcn.cl", smtp_enabled=True)
-    assert result.status in (VStatus.VALID, VStatus.UNKNOWN)
     assert result.syntax_ok is True
     assert result.mx_ok is True
+    assert result.status in (VStatus.VALID, VStatus.UNKNOWN, VStatus.INVALID)
+    # A definitive answer must say which one it was. UNKNOWN is the bucket
+    # for "could not tell", so it is the only status allowed to carry no
+    # reason (ADR-0004, ADR-0009).
+    if result.status is not VStatus.UNKNOWN:
+        assert result.error or result.smtp_ok, result
