@@ -214,6 +214,13 @@ rather than maintained).
       [ADR-0003](docs/adr/0003-crawl-phase1-phase2-scope.md)'s `.cl`-only
       email filter, and per that ADR's own rules a changed decision gets a
       new ADR, never an edit to 0003 itself.
+- [ ] Read [docs/research/dotcom-attribution.md](docs/research/dotcom-attribution.md)
+      before scoping this. Measured on 2026-07-24: a `.com` address carries
+      no country at all — RDAP returns no registrant country for `bhp.com`,
+      `codelco.com` or `falabella.com`, and `bhp.cl` does not exist — so
+      this is not a filter change. The country signal lives on the page an
+      address was found on, not in the address, which moves the unit of
+      attribution and is the thing the ADR has to decide.
 
 ### v0.55 — Verifier Stage 4 resolution
 **Status:** Not Started
