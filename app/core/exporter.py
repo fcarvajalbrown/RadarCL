@@ -92,6 +92,8 @@ def _normalize(record: dict) -> dict:
         normalized['evidence'] = list(record['evidence'])
     if 'generated' in record:
         normalized['generated'] = bool(record['generated'])
+    if 'hidden' in record:
+        normalized['hidden'] = bool(record['hidden'])
     return normalized
 
 
@@ -123,7 +125,16 @@ def export_valid(results: list[dict], path: Path | None = None) -> Path:
     if path is None:
         path = default_export_path()
 
-    valid = [r for r in results if r.get('status') == 'valid']
+    # VALID, and not found only in markup a reader cannot see. An address
+    # planted in a hidden div is a spam trap far more often than a contact,
+    # and one delivery to a trap gets the sender blocklisted, which costs
+    # every other address in this file. Same exclusion CATCH_ALL gets under
+    # ADR-0016, for the same reason: the CSV is the one output whose value
+    # depends on not guessing.
+    valid = [
+        r for r in results
+        if r.get('status') == 'valid' and not r.get('hidden')
+    ]
 
     with open(path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS, extrasaction='ignore')
@@ -186,6 +197,8 @@ td.evidencia { font-size: .88rem; }
 .sin-evidencia { color: #888; font-style: italic; }
 .generado { margin-left: .4rem; font-size: .75rem; padding: .05rem .35rem;
             border: 1px solid #999; border-radius: 3px; color: #666; }
+.oculto { margin-left: .4rem; font-size: .75rem; padding: .05rem .35rem;
+          border: 1px solid #c62828; border-radius: 3px; color: #c62828; }
 a { color: inherit; }
 .nota { color: #666; font-size: .88rem; margin-top: 1.5rem;
         border-top: 1px solid #e0e0e0; padding-top: 1rem; }
@@ -243,6 +256,10 @@ def export_html(results: list[dict], path: Path) -> Path:
             + ('<span class="generado" title="Direccion generada a partir '
                'de un patron, no encontrada publicada">generado</span>'
                if row.get('generated') else '')
+            + ('<span class="oculto" title="Solo aparecia en partes de la '
+               'pagina que un lector no ve. Suele ser una trampa para '
+               'recolectores, y por eso queda fuera del CSV">oculto</span>'
+               if row.get('hidden') else '')
             + '</td>'
             f'<td class="origen">{_source_cell(row["source"])}</td>'
             f'<td class="estado">{html.escape(_ROW_LABELS.get(status, status))}</td>'

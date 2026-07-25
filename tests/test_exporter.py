@@ -245,3 +245,59 @@ def test_catch_all_appears_in_json_and_html(tmp_path):
     body = export_html(results, tmp_path / 'o.html').read_text('utf-8')
     assert 'Acepta todo' in body
     assert 'acepta que sí a cualquier' in body or 'cualquier destinatario' in body
+
+
+def test_hidden_addresses_stay_out_of_the_csv(tmp_path) -> None:
+    """
+    A trap must never reach the mailable list, even when VALID.
+
+    An address found only in hidden markup can verify perfectly well and
+    still be a spam trap: that is what a trap is for. The CSV is the file
+    ADR-0010 defines as the one you send to, so this is the same exclusion
+    CATCH_ALL gets under ADR-0016.
+    """
+    results = [
+        {'email': 'real@nunoa.cl', 'source': 'u', 'status': 'valid',
+         'error': '', 'hidden': False},
+        {'email': 'trap@nunoa.cl', 'source': 'u', 'status': 'valid',
+         'error': '', 'hidden': True},
+    ]
+    path = export_valid(results, tmp_path / 'out.csv')
+    body = path.read_text(encoding='utf-8')
+
+    assert 'real@nunoa.cl' in body
+    assert 'trap@nunoa.cl' not in body
+
+
+def test_hidden_addresses_survive_in_json_and_html(tmp_path) -> None:
+    """The run record keeps them, marked. Only the CSV drops them."""
+    results = [
+        {'email': 'trap@nunoa.cl', 'source': 'u', 'status': 'valid',
+         'error': '', 'hidden': True},
+    ]
+
+    data = json.loads(
+        export_json(results, tmp_path / 'out.json').read_text(encoding='utf-8')
+    )
+    assert data['results'][0]['hidden'] is True
+
+    page = export_html(results, tmp_path / 'out.html').read_text(encoding='utf-8')
+    assert 'trap@nunoa.cl' in page
+    assert 'oculto' in page
+
+
+def test_absent_hidden_key_is_not_treated_as_hidden(tmp_path) -> None:
+    """
+    A record nobody checked still exports.
+
+    The `verify` subcommand reads bare addresses and has no page behind
+    them, so it reports no `hidden` key at all. Absent must not read as
+    True, or that path would silently produce an empty CSV.
+    """
+    results = [
+        {'email': 'suelto@nunoa.cl', 'source': '', 'status': 'valid',
+         'error': ''},
+    ]
+    path = export_valid(results, tmp_path / 'out.csv')
+
+    assert 'suelto@nunoa.cl' in path.read_text(encoding='utf-8')

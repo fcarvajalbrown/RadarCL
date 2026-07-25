@@ -45,11 +45,17 @@ class Discovery:
         `app.core.provenance`. Empty means no evidence was found, not that
         the page is foreign, and it is a statement about the page rather
         than about who owns the domain (ADR-0014).
+    hidden : bool
+        True when every occurrence of the address on that page sat inside
+        markup a reader cannot see. Those are spam traps far more often
+        than contacts, and mailing one earns a blocklisting that costs the
+        sender every other address in the file.
     """
     email: str
     source_url: str
     generated: bool
     evidence: tuple[str, ...] = ()
+    hidden: bool = False
 
 
 async def crawl_and_extract(
@@ -142,6 +148,7 @@ async def crawl_and_extract(
                 yield Discovery(
                     email=email, source_url=url, generated=False,
                     evidence=page_evidence,
+                    hidden=bool(record.get('hidden')),
                 )
 
         # Generated candidates are held to the same .cl scope as scraped
@@ -176,10 +183,11 @@ def verify_all(
     Parameters
     ----------
     emails : Sequence[tuple]
-        `(email, source_url)`, `(email, source_url, evidence)`, or
-        `(email, source_url, evidence, generated)`. The shorter shapes are
-        accepted because the `verify` subcommand reads bare addresses from
-        a file and has neither a page nor a provenance to report.
+        `(email, source_url)` through
+        `(email, source_url, evidence, generated, hidden)`. The shorter
+        shapes are accepted because the `verify` subcommand reads bare
+        addresses from a file and has neither a page nor a provenance to
+        report.
     smtp_enabled : bool
         If False, skip the SMTP handshake stage.
 
@@ -218,4 +226,6 @@ def verify_all(
             record['evidence'] = list(rest[0])
         if len(rest) > 1:
             record['generated'] = bool(rest[1])
+        if len(rest) > 2:
+            record['hidden'] = bool(rest[2])
         yield record

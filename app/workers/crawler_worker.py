@@ -20,22 +20,26 @@ class CrawlerWorker(QThread):
 
     Signals
     -------
-    email_found : Signal(str, str, object)
+    email_found : Signal(str, str, object, bool)
         Emitted for each discovered email: (email_address, source_url,
-        evidence). Evidence is the `Discovery.evidence` tuple, carried as
-        `object` because Qt has no tuple-of-str signal type; it travels to
-        the exporters and is not displayed (ADR-0014).
-    candidate_found : Signal(str, str, object)
+        evidence, hidden). Evidence is the `Discovery.evidence` tuple,
+        carried as `object` because Qt has no tuple-of-str signal type; it
+        travels to the exporters and is not displayed (ADR-0014). `hidden`
+        says the address was found only in markup a reader cannot see,
+        which keeps it out of the CSV.
+    candidate_found : Signal(str, str, object, bool)
         Emitted for each pattern-generated candidate: (email, source_url,
-        evidence).
+        evidence, hidden). A generated candidate is never hidden - it was
+        invented, not read off a page - and the argument is present so both
+        signals carry one shape.
     debug_message : Signal(str)
         Emitted for crawler debug messages (URLs visited, errors).
     crawl_finished : Signal()
         Emitted when the crawl completes or is stopped.
     """
 
-    email_found: Signal = Signal(str, str, object)
-    candidate_found: Signal = Signal(str, str, object)
+    email_found: Signal = Signal(str, str, object, bool)
+    candidate_found: Signal = Signal(str, str, object, bool)
     debug_message: Signal = Signal(str)
     page_crawled: Signal = Signal(int)
     crawl_finished: Signal = Signal()
@@ -134,9 +138,11 @@ class CrawlerWorker(QThread):
         ):
             if discovery.generated:
                 self.candidate_found.emit(
-                    discovery.email, discovery.source_url, discovery.evidence
+                    discovery.email, discovery.source_url, discovery.evidence,
+                    discovery.hidden,
                 )
             else:
                 self.email_found.emit(
-                    discovery.email, discovery.source_url, discovery.evidence
+                    discovery.email, discovery.source_url, discovery.evidence,
+                    discovery.hidden,
                 )

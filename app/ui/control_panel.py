@@ -109,7 +109,9 @@ class ControlPanel(QWidget):
         self._crawler: CrawlerWorker | None = None
         self._verifier: VerifierWorker | None = None
         self._discovery_worker: _DiscoveryWorker | None = None
-        self._collected_emails: list[tuple[str, str, tuple[str, ...]]] = []
+        self._collected_emails: list[
+            tuple[str, str, tuple[str, ...], bool, bool]
+        ] = []
         self._discovered_seeds: list[str] = []
         self._session_id: int | None = None
         self._is_running: bool = False
@@ -709,7 +711,8 @@ class ControlPanel(QWidget):
     # ── Worker signal handlers
 
     def _on_email_found(
-        self, email: str, source: str, evidence: tuple[str, ...] = ()
+        self, email: str, source: str, evidence: tuple[str, ...] = (),
+        hidden: bool = False,
     ) -> None:
         """
         Store, persist, and forward discovered email.
@@ -718,16 +721,23 @@ class ControlPanel(QWidget):
         and deliberately not forwarded to the results table: it describes
         the page, not the address, and a column would invite reading it as
         a nationality (ADR-0014).
+
+        `hidden` travels the same way, and does one thing the table does not
+        show: it keeps the address out of the auto-exported CSV. An address
+        found only in markup a reader cannot see is a spam trap far more
+        often than a contact, and this export lands on the user's Desktop
+        ready to mail.
         """
-        self._collected_emails.append((email, source, evidence))
+        self._collected_emails.append((email, source, evidence, False, hidden))
         session.save_email(self._session_id, email, source)
         self.email_discovered.emit(email, source)
 
     def _on_candidate_found(
-        self, email: str, source: str, evidence: tuple[str, ...] = ()
+        self, email: str, source: str, evidence: tuple[str, ...] = (),
+        hidden: bool = False,
     ) -> None:
         """Store, persist, and forward pattern-generated candidate."""
-        self._collected_emails.append((email, source, evidence))
+        self._collected_emails.append((email, source, evidence, True, hidden))
         session.save_email(self._session_id, email, source)
         self.candidate_discovered.emit(email, source)
 

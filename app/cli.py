@@ -434,7 +434,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     log(f"{len(discoveries)} correos encontrados.", args.quiet)
 
-    pairs = [(d.email, d.source_url, d.evidence, d.generated)
+    pairs = [(d.email, d.source_url, d.evidence, d.generated, d.hidden)
              for d in discoveries]
     results: list[dict] = []
     try:
