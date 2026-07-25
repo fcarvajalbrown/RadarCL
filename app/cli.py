@@ -429,7 +429,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     log(f"{len(discoveries)} correos encontrados.", args.quiet)
 
-    pairs = [(d.email, d.source_url) for d in discoveries]
+    pairs = [(d.email, d.source_url, d.evidence) for d in discoveries]
     results: list[dict] = []
     try:
         for record in verify_all(pairs, smtp_enabled=not args.no_smtp):

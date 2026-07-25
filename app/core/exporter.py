@@ -6,6 +6,10 @@ VALID only. JSON and HTML instead carry every record with its status,
 because UNKNOWN is a first-class verification outcome (ADR-0009) and a
 report that hides it throws away the rows worth retrying. See ADR-0010.
 
+The same split governs `evidence` (ADR-0014): JSON and HTML report which
+Chilean signals the source page carried, CSV does not, because a mailing
+list is not the place for run metadata.
+
 Format is picked from the output extension, or forced by the caller.
 
 Auto-export destination: ~/Desktop/RadarCL-YYYY-MM-DD.csv
@@ -68,8 +72,19 @@ def summarize(results: list[dict]) -> dict[str, int]:
 
 
 def _normalize(record: dict) -> dict:
-    """Reduce a result to the four exported fields, filling in blanks."""
-    return {field: record.get(field) or '' for field in FIELDS}
+    """
+    Reduce a result to the four exported fields, filling in blanks.
+
+    `evidence` is carried through when present and left out when absent,
+    so a record nobody checked stays distinguishable from one that was
+    checked and showed nothing (ADR-0014). CSV is unaffected either way:
+    `export_valid` writes with `extrasaction='ignore'`, so the mailable
+    deliverable keeps exactly the columns ADR-0010 gave it.
+    """
+    normalized = {field: record.get(field) or '' for field in FIELDS}
+    if 'evidence' in record:
+        normalized['evidence'] = list(record['evidence'])
+    return normalized
 
 
 def _timestamp() -> str:
@@ -157,6 +172,8 @@ tr.valid td.estado { color: #2e7d32; }
 tr.unknown td.estado { color: #ef6c00; }
 tr.invalid td.estado { color: #c62828; }
 td.origen { word-break: break-all; }
+td.evidencia { font-size: .88rem; }
+.sin-evidencia { color: #888; font-style: italic; }
 a { color: inherit; }
 .nota { color: #666; font-size: .88rem; margin-top: 1.5rem;
         border-top: 1px solid #e0e0e0; padding-top: 1rem; }
@@ -202,11 +219,18 @@ def export_html(results: list[dict], path: Path) -> Path:
     for record in results:
         row = _normalize(record)
         status = row['status']
+        evidence = row.get('evidence')
+        evidence_cell = (
+            html.escape(', '.join(evidence)) if evidence
+            else ('<span class="sin-evidencia">sin evidencia</span>'
+                  if evidence == [] else '')
+        )
         rows.append(
             f'<tr class="{html.escape(status)}">'
             f'<td>{html.escape(row["email"])}</td>'
             f'<td class="origen">{_source_cell(row["source"])}</td>'
             f'<td class="estado">{html.escape(_ROW_LABELS.get(status, status))}</td>'
+            f'<td class="evidencia">{evidence_cell}</td>'
             f'<td>{html.escape(row["error"])}</td>'
             f'</tr>'
         )
@@ -227,7 +251,7 @@ def export_html(results: list[dict], path: Path) -> Path:
 {chr(10).join(cards)}
 </ul>
 <table>
-<thead><tr><th>Correo</th><th>Origen</th><th>Estado</th><th>Detalle</th></tr></thead>
+<thead><tr><th>Correo</th><th>Origen</th><th>Estado</th><th>Evidencia</th><th>Detalle</th></tr></thead>
 <tbody>
 {chr(10).join(rows)}
 </tbody>
@@ -236,6 +260,12 @@ def export_html(results: list[dict], path: Path) -> Path:
 se pudo comprobar, normalmente porque el servidor de correo rechaza las
 sondas de verificación o porque la consulta DNS no obtuvo respuesta. Vale
 la pena reintentarla desde otra red antes de descartarla.</p>
+<p class="nota">La columna Evidencia enumera las señales chilenas presentes
+en la página donde se encontró la dirección. No afirma la nacionalidad de
+la empresa: la página de una compañía extranjera con oficina en Santiago
+muestra evidencia chilena, y hace bien en mostrarla. «Sin evidencia»
+significa que se revisó la página y no había ninguna señal, que no es lo
+mismo que una celda vacía, donde no se revisó nada.</p>
 </body>
 </html>
 """

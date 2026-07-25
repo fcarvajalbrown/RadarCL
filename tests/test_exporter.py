@@ -156,3 +156,56 @@ def test_export_rejects_an_unsupported_format(tmp_path):
     """--format xml is a usage error, not a crash mid-write."""
     with pytest.raises(ValueError, match='xml'):
         export(RESULTS, tmp_path / 'out.csv', fmt='xml')
+
+
+# ── Chilean-evidence field (ADR-0014)
+
+_WITH_EVIDENCE = [
+    {'email': 'a@nunoa.cl', 'source': 'https://nunoa.cl/contacto',
+     'status': 'valid', 'error': '', 'evidence': ['lexicon', 'phone-cl']},
+    {'email': 'b@nunoa.cl', 'source': 'https://nunoa.cl/otra',
+     'status': 'valid', 'error': '', 'evidence': []},
+]
+
+
+def test_csv_ignores_evidence(tmp_path):
+    """The mailable deliverable keeps exactly ADR-0010's columns."""
+    path = export_valid(_WITH_EVIDENCE, tmp_path / 'out.csv')
+    header = path.read_text(encoding='utf-8').splitlines()[0]
+
+    assert header == 'email,source,status,error'
+    assert 'evidence' not in path.read_text(encoding='utf-8')
+
+
+def test_json_carries_evidence(tmp_path):
+    """JSON is the run record, so it reports what the page showed."""
+    path = export_json(_WITH_EVIDENCE, tmp_path / 'out.json')
+    results = json.loads(path.read_text(encoding='utf-8'))['results']
+
+    assert results[0]['evidence'] == ['lexicon', 'phone-cl']
+
+
+def test_json_omits_evidence_when_nobody_looked(tmp_path):
+    """
+    Absent and empty must stay distinguishable: empty means the page was
+    checked and showed nothing, absent means it was never checked.
+    """
+    path = export_json(RESULTS, tmp_path / 'out.json')
+    results = json.loads(path.read_text(encoding='utf-8'))['results']
+
+    assert 'evidence' not in results[0]
+
+    checked = json.loads(
+        export_json(_WITH_EVIDENCE, tmp_path / 'b.json').read_text('utf-8')
+    )['results']
+    assert checked[1]['evidence'] == []
+
+
+def test_html_shows_evidence_and_marks_the_empty_case(tmp_path):
+    """HTML distinguishes 'checked, nothing found' from 'not checked'."""
+    body = export_html(_WITH_EVIDENCE, tmp_path / 'out.html').read_text('utf-8')
+
+    assert '<th>Evidencia</th>' in body
+    assert 'lexicon, phone-cl' in body
+    assert 'sin-evidencia' in body
+    assert 'No afirma la nacionalidad' in body

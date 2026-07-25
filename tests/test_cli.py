@@ -310,17 +310,21 @@ def test_scan_runs_pipeline_and_prints_results(
             email="contacto@nunoa.cl",
             source_url="http://a.cl",
             generated=False,
+            evidence=("lexicon", "phone-cl"),
         )
 
+    seen_evidence: list[tuple] = []
+
+    def _fake_verify(emails, **kw):
+        # Mirrors verify_all's real arity: scan passes evidence through,
+        # the verify subcommand has none to pass.
+        for email, source, *rest in emails:
+            seen_evidence.append(rest[0] if rest else None)
+            yield {"email": email, "source": source,
+                   "status": "valid", "error": ""}
+
     monkeypatch.setattr(cli, "crawl_and_extract", _fake_crawl)
-    monkeypatch.setattr(
-        cli,
-        "verify_all",
-        lambda emails, **kw: iter([
-            {"email": e, "source": s, "status": "valid", "error": ""}
-            for e, s in emails
-        ]),
-    )
+    monkeypatch.setattr(cli, "verify_all", _fake_verify)
 
     exit_code = cli.main([
         "scan", "nunoa.cl", "--seeds", str(seeds_file), "--no-session"
@@ -330,6 +334,9 @@ def test_scan_runs_pipeline_and_prints_results(
     captured = capsys.readouterr()
     assert captured.out == "contacto@nunoa.cl\tvalid\thttp://a.cl\n"
     assert "1 validos" in captured.err
+    # stdout stays three fields (ADR-0014); evidence reaches the verifier
+    # instead, for the JSON and HTML exports to carry.
+    assert seen_evidence == [("lexicon", "phone-cl")]
 
 
 def test_scan_fails_when_no_seeds(monkeypatch, capsys) -> None:
