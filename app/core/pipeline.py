@@ -23,6 +23,7 @@ _STATUS_NAMES: dict[VStatus, str] = {
     VStatus.VALID: 'valid',
     VStatus.INVALID: 'invalid',
     VStatus.UNKNOWN: 'unknown',
+    VStatus.CATCH_ALL: 'catch_all',
 }
 
 
@@ -189,8 +190,15 @@ def verify_all(
         was checked and showed nothing (ADR-0014). Absent means nobody
         looked, and a consumer must not read the two the same way.
     """
+    # One verdict per domain for the whole run: catch-all is a property
+    # of the mail server, so 23 addresses at one domain ask its server
+    # once (ADR-0016).
+    catch_all_cache: dict[str, bool] = {}
+
     for email, source, *rest in emails:
-        result = verify(email, smtp_enabled=smtp_enabled)
+        result = verify(
+            email, smtp_enabled=smtp_enabled, catch_all_cache=catch_all_cache
+        )
         record = {
             'email': email,
             'source': source,

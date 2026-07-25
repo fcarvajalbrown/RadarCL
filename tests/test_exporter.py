@@ -56,8 +56,10 @@ def test_json_includes_summary_counts(tmp_path):
     path = export_json(RESULTS, tmp_path / 'out.json')
     payload = json.loads(path.read_text(encoding='utf-8'))
 
+    # Every known status is present even at zero, so a consumer can index
+    # them without guarding. catch_all joined the set in v0.55 (ADR-0016).
     assert payload['summary'] == {
-        'total': 3, 'valid': 1, 'unknown': 1, 'invalid': 1
+        'total': 3, 'valid': 1, 'catch_all': 0, 'unknown': 1, 'invalid': 1
     }
 
 
@@ -70,7 +72,7 @@ def test_summarize_counts_unexpected_statuses_too():
 
 
 def test_html_carries_every_status(tmp_path):
-    """The HTML report shows the same three buckets the JSON does."""
+    """The HTML report shows the same buckets the JSON does."""
     path = export_html(RESULTS, tmp_path / 'out.html')
     body = path.read_text(encoding='utf-8')
 
@@ -209,3 +211,37 @@ def test_html_shows_evidence_and_marks_the_empty_case(tmp_path):
     assert 'lexicon, phone-cl' in body
     assert 'sin-evidencia' in body
     assert 'No afirma la nacionalidad' in body
+
+
+def test_catch_all_is_kept_out_of_the_csv(tmp_path):
+    """
+    The CSV is the list you mail, and a catch-all address is the one that
+    bounces: the server said yes to invented addresses, so it never
+    confirmed this one (ADR-0016).
+    """
+    results = [
+        {'email': 'real@nunoa.cl', 'source': '', 'status': 'valid', 'error': ''},
+        {'email': 'quizas@acepta.cl', 'source': '', 'status': 'catch_all',
+         'error': 'Domain accepts all recipients'},
+    ]
+    body = export_valid(results, tmp_path / 'out.csv').read_text('utf-8')
+
+    assert 'real@nunoa.cl' in body
+    assert 'quizas@acepta.cl' not in body
+
+
+def test_catch_all_appears_in_json_and_html(tmp_path):
+    """It is excluded from the deliverable, not hidden from the record."""
+    results = [
+        {'email': 'quizas@acepta.cl', 'source': '', 'status': 'catch_all',
+         'error': 'Domain accepts all recipients'},
+    ]
+    payload = json.loads(
+        export_json(results, tmp_path / 'o.json').read_text('utf-8')
+    )
+    assert payload['summary']['catch_all'] == 1
+    assert payload['results'][0]['status'] == 'catch_all'
+
+    body = export_html(results, tmp_path / 'o.html').read_text('utf-8')
+    assert 'Acepta todo' in body
+    assert 'acepta que sí a cualquier' in body or 'cualquier destinatario' in body

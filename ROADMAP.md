@@ -239,8 +239,8 @@ rather than decides). Narrows
 it. Evidence and sample limits are in
 [docs/research/dotcom-attribution.md](docs/research/dotcom-attribution.md).
 
-### v0.55 — Verifier Stage 4 resolution
-**Status:** Not Started
+### v0.55 — Verification honesty
+**Status:** Done
 - [x] The Stage 4 API placeholder is closed and removed, not built. No
       interface exposed it, `api_status` was read by nothing, and the early
       return on `smtp_enabled` meant it could only fire after a completed
@@ -249,13 +249,14 @@ it. Evidence and sample limits are in
       immediately below this one, so the integration would have cost money
       to be unreliable exactly where it was needed
       ([ADR-0015](docs/adr/0015-no-third-party-verification-api.md)).
-- [ ] Accept-all / catch-all domain detection: Yahoo, AOL, mail.com and
-      hardened Exchange estates return `250` to every `RCPT TO` as an
-      anti-harvesting measure, so a 250 is not evidence the mailbox exists
-      and the current code reports those as VALID. Needs a second probe to
-      a random address at the same domain, a fourth status bucket, and its
-      own ADR. Surfaced by the research behind
-      [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md).
+- [x] Catch-all domain detection. A `250` from a server that also accepts
+      invented addresses is now `VStatus.CATCH_ALL`, not VALID: two probes
+      of 20 hex characters each, over the connection already open, with
+      every probe having to be accepted before the verdict lands. Cached
+      per domain for the run, since catch-all is a property of the server
+      and not of the mailbox. Excluded from the CSV and present in JSON and
+      HTML, the split ADR-0010 already drew
+      ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)).
 
 ### v0.60 — PGP keyserver source
 **Status:** Not Started

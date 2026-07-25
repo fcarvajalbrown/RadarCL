@@ -20,13 +20,18 @@ from pathlib import Path
 
 
 STATUS_COLORS = {
-    'valid':   ('#E8F5E9', '#2E7D32'),  # (bg, fg)
-    'unknown': ('#FFF8E1', '#F57F17'),
-    'invalid': ('#FFEBEE', '#B71C1C'),
+    'valid':     ('#E8F5E9', '#2E7D32'),  # (bg, fg)
+    'catch_all': ('#F3E5F5', '#6A1B9A'),
+    'unknown':   ('#FFF8E1', '#F57F17'),
+    'invalid':   ('#FFEBEE', '#B71C1C'),
 }
 
 STATUS_LABELS = {
     'valid': 'Válido',
+    # The server accepts every recipient, so its yes proves nothing about
+    # this mailbox. Not the same as "desconocido", where nobody answered
+    # at all (ADR-0016).
+    'catch_all': 'Acepta todo',
     'unknown': 'Desconocido',
     'invalid': 'Inválido',
 }

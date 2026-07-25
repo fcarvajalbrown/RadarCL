@@ -6,6 +6,10 @@ VALID only. JSON and HTML instead carry every record with its status,
 because UNKNOWN is a first-class verification outcome (ADR-0009) and a
 report that hides it throws away the rows worth retrying. See ADR-0010.
 
+CATCH_ALL is excluded from the CSV for the same reason UNKNOWN is: the
+server answered yes to invented addresses, so it never confirmed this one
+(ADR-0016). It appears in JSON and HTML with its own label.
+
 The same split governs `evidence` (ADR-0014): JSON and HTML report which
 Chilean signals the source page carried, CSV does not, because a mailing
 list is not the place for run metadata.
@@ -36,12 +40,14 @@ _EXTENSIONS = {
 # Display order and Spanish label for each status the verifier produces.
 _STATUS_LABELS = {
     'valid': 'Válidos',
+    'catch_all': 'Acepta todo',
     'unknown': 'Desconocidos',
     'invalid': 'Inválidos',
 }
 
 _ROW_LABELS = {
     'valid': 'Válido',
+    'catch_all': 'Acepta todo',
     'unknown': 'Desconocido',
     'invalid': 'Inválido',
 }
@@ -59,7 +65,7 @@ def summarize(results: list[dict]) -> dict[str, int]:
     """
     Count records per status, plus a total.
 
-    The three known statuses are always present, even at zero, so a
+    The four known statuses are always present, even at zero, so a
     consumer can index them without guarding. Any status the verifier
     grows later is appended rather than dropped.
     """
@@ -161,6 +167,7 @@ h1 { margin-bottom: 0; font-size: 1.5rem; }
               border-radius: 4px; padding: .5rem .9rem; min-width: 7rem; }
 .resumen b { display: block; font-size: 1.4rem; }
 .valid { border-left-color: #2e7d32; }
+.catch_all { border-left-color: #6a1b9a; }
 .unknown { border-left-color: #ef6c00; }
 .invalid { border-left-color: #c62828; }
 table { border-collapse: collapse; width: 100%; font-size: .92rem; }
@@ -169,6 +176,7 @@ th, td { text-align: left; padding: .45rem .6rem;
 th { border-bottom-width: 2px; }
 td.estado { white-space: nowrap; font-weight: 600; }
 tr.valid td.estado { color: #2e7d32; }
+tr.catch_all td.estado { color: #6a1b9a; }
 tr.unknown td.estado { color: #ef6c00; }
 tr.invalid td.estado { color: #c62828; }
 td.origen { word-break: break-all; }
@@ -260,6 +268,11 @@ def export_html(results: list[dict], path: Path) -> Path:
 se pudo comprobar, normalmente porque el servidor de correo rechaza las
 sondas de verificación o porque la consulta DNS no obtuvo respuesta. Vale
 la pena reintentarla desde otra red antes de descartarla.</p>
+<p class="nota">«Acepta todo» significa que el servidor del dominio
+responde que sí a cualquier destinatario, incluso a direcciones inventadas
+que se le probaron. La dirección puede existir igual, pero el servidor no
+lo confirma, así que queda fuera del CSV por la misma razón que los
+desconocidos: es la lista con la que se escribe.</p>
 <p class="nota">La columna Evidencia enumera las señales chilenas presentes
 en la página donde se encontró la dirección. No afirma la nacionalidad de
 la empresa: la página de una compañía extranjera con oficina en Santiago

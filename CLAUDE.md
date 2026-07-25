@@ -241,9 +241,11 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   fourth third-party API stage was a placeholder no interface exposed and was removed
   rather than built, since the commercial APIs are 70-85% accurate on catch-all domains
   ([ADR-0015](docs/adr/0015-no-third-party-verification-api.md)).
-  Returns a `VerificationResult` with a `VStatus` of VALID/UNKNOWN/INVALID;
+  Returns a `VerificationResult` with a `VStatus` of VALID/CATCH_ALL/UNKNOWN/INVALID;
   SMTP failures/timeouts land in UNKNOWN rather than INVALID since many servers block
-  verification probes.
+  verification probes. A 250 from a server that also accepts invented addresses is
+  CATCH_ALL, not VALID, and is kept out of the mailable CSV
+  ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)).
 - `app/core/hw_profile.py` — detects RAM/CPU at startup and picks a `low`/`medium`/`high`
   tier (concurrency, request delay, max pages) so the app doesn't overwhelm low-spec
   hardware; the tier badge is surfaced in the control panel UI.
