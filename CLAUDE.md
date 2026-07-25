@@ -65,7 +65,7 @@ and Windows uses `AppVersion` to decide whether an install is an upgrade:
 | `pyproject.toml` | `version = "0.4.0"` |
 | `app/__init__.py` | `__version__ = "0.4.0"` — this is what the CLI's `--version`, the JSON export and the HTML report all stamp |
 | `RadarCL.iss` | `#define AppVersion "0.4.0"`; `OutputBaseFilename` derives from it |
-| `README.md` | the `versión` badge URL, plus a new entry at the top of "Historial de versiones" |
+| `README.md` | the `versión` badge URL. Nothing else: "Historial de versiones" is a link to CHANGELOG.md, not a list, so there is no entry to add there |
 
 **2. Verify before building.** A broken build is worse than no release:
 
@@ -107,10 +107,34 @@ if ($src.LastWriteTime -gt $exe.LastWriteTime) {
 
 `-Include *.py` matters: without it `__pycache__` churn from a test run
 reports STALE every time, and a guard that cries wolf gets ignored. Both
-branches were verified on the v0.4.0 build. A second, content-level check
-is worth it when a release removes something: grep the exe for a string
-that should be gone (`grep -c "subdere.gov.cl" dist\RadarCL.exe` returned
-0 for v0.4.0) — cheap proof the binary is the code you think it is.
+branches were verified on the v0.4.0 build.
+
+**Do not grep the exe for a string literal. It does not work, and it
+reads as if it does.** Until v0.5.0 this section recommended grepping for
+a string that should be gone, citing `grep -c "subdere.gov.cl"` returning
+0 on the v0.4.0 build. Tested properly on the v0.5.0 build, strings that
+are unquestionably in the shipped code return 0 as well:
+
+```
+sessions.db        0
+mailto:            0
+Rastreo completo   0
+```
+
+In a `--onefile` build the bytecode is LZMA-compressed inside the archive,
+so no literal from `app/` is greppable. The v0.4.0 check passed for the
+wrong reason and would have passed with the stage still in.
+
+What is greppable is the archive's table of contents, which holds **module
+names** uncompressed. That is a real check:
+
+```bash
+grep -c "provenance" dist\RadarCL.exe    # 1 on the v0.5.0 build
+```
+
+It confirms a module is bundled. It cannot confirm a string was removed,
+so a release that deletes something needs a different check, or none, but
+not a grep that always says yes.
 
 **4. Publish.** Tag and Release, with the installer attached:
 
