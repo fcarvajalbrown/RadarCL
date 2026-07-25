@@ -2,6 +2,56 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Where this left off — read first (2026-07-25)
+
+**v0.60 is Done and unreleased. The next job is cutting `v0.6.0`.**
+
+`app/__init__.py` still says `0.5.5` and the last installer is **v0.5.0**, so
+the desktop app is missing everything below. The GUI is the build that
+matters here: it auto-writes a CSV to the user's Desktop, so the spam-trap
+fix protects GUI users specifically, and they are the ones who do not have it.
+
+Shipped in code, never in a binary:
+
+| From | What the v0.5.0 exe lacks |
+|---|---|
+| v0.55 | Catch-all detection ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)) |
+| v0.55 | Corrected SMTP classification — a `550 5.7.1` no longer marks a live address dead ([ADR-0017](docs/adr/0017-a-reply-is-evidence-only-about-its-subject.md)) |
+| v0.60 | Spam traps kept out of the CSV ([ADR-0021](docs/adr/0021-an-address-a-reader-cannot-see-is-not-a-contact.md)) |
+| v0.60 | Cloudflare-obfuscated addresses decoded ([ADR-0022](docs/adr/0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md)) |
+| v0.60 | `generated` finally reaching GUI exports — it never had before |
+
+Cutting it means the full Releases procedure below: four version bumps, the
+`pytest -m "not smtp"` and `vendor.py --check` gate, PyInstaller **then** the
+mtime staleness check **then** ISCC, and release notes through
+[docs/release-notes.md](docs/release-notes.md). Ask before publishing.
+
+**Known, deliberate, and not to be rediscovered as bugs:**
+
+- **`detect_entity_type` misclassifies.** It called `huachipatofc.cl` (a
+  football club), `editorialusach.cl` (a publisher) and `supereduc.cl` (the
+  schools regulator) universities, by substring-matching `uc`, `usach` and
+  `educ`. Recorded in
+  [docs/research/pgp-keyserver-yield.md](docs/research/pgp-keyserver-yield.md)
+  and left unfixed on purpose: it changes which seeds every scan produces, so
+  it needs its own change and its own ADR.
+- **Honeypot prevalence on `.cl` was never measured.** Felipe decided the
+  demonstrated defect was enough. So nobody knows how often Chilean sites
+  actually plant traps — see ADR-0021, which says so rather than implying a
+  number exists.
+- **The session store is write-only.** `load_session` and `list_sessions` have
+  no callers anywhere. `evidence` and `generated` are deliberately *not*
+  persisted: ADR-0006 treats session data as sensitive, and adding per-address
+  fields nothing can display would increase exposure for nothing. That gap
+  stays open, blocked on there being a reader.
+- **The GUI two-phase write is correct, not a bug.** `save_email` is called at
+  discovery with status defaulting to `unknown`, then `update_email_status`
+  fills it in after verification. `tests/test_session.py` pins the sequence.
+
+**Next roadmap items:** v0.70 infers the email pattern instead of asking the
+user for it; v0.80 harvests PDFs and documents. Both are measured before they
+are built.
+
 ## What this is
 
 RadarCL is a Windows desktop app (PySide6/Qt6) that discovers and verifies `.cl` email
