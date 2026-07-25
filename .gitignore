@@ -64,3 +64,6 @@ CL-Emails-*.csv
 # API keys / credentials
 keyring_backup.json
 secrets.json
+# Cached Public Suffix List for scripts/sibling_cl_measure.py — a 325 KB
+# third-party file it re-downloads on demand, not project source.
+scripts/data/public_suffix_list.dat

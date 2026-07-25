@@ -180,5 +180,211 @@ disagreement is the finding.
 
 ---
 
-*Results are appended below this line once the run completes. Nothing
-above it is edited afterwards.*
+*Everything above this line was committed in `13ab465` before the first DNS
+query was sent, and has not been edited since. Everything below is the run.*
+
+# Results, 2026-07-25
+
+## The gate was missed
+
+| Population (a) | |
+|---|---|
+| Domains drawn | 200 |
+| Distinct sibling `.cl` domains | 189 (11 hosts shared a sibling) |
+| Mail-capable | 84 |
+| No mail — definitive | 94 |
+| Unreachable — non-response | 11 |
+
+**84 of 178 reachable = 47.2%, 95% Wilson [39.994%, 54.507%].**
+
+The pre-registered rule was a lower bound at or above 40%. It lands at
+**39.994%**, missing by 0.006 percentage points.
+
+A margin that small is not a real difference, and it is not what decides
+this. The strict analysis below is.
+
+## Thirty-one per cent of the "mail-capable" siblings accept no mail
+
+`resolve_mx` implements RFC 5321's implicit MX: when a domain publishes no
+MX record, its A record is treated as the mail exchanger. So a domain with a
+web server and no mail service returns a host and counts as mail-capable.
+
+Squatted and defensively-registered domains are overwhelmingly parking
+pages, and a parking page has an A record. Checked per domain, **26 of the
+84 mail-capable siblings have no MX record at all**:
+
+`roche.cl`, `sonda.cl`, `facebook.cl`, `columbia.cl`, `arica.cl`,
+`skyairline.cl`, `frutillar.cl`, `xepelin.cl`, `chicotrujillo.cl`,
+`veritrade.cl`, `huilohuilo.cl`, `enelamericas.cl`, `13i.cl` and thirteen
+more.
+
+**Requiring a real MX record gives 58 of 178 = 32.6%, 95% Wilson
+[26.1%, 39.8%].** The entire interval sits below the gate.
+
+That is the finding. The hint does not fail by a rounding error; it fails
+once it has to mean what it says. The 47.2% is reached only by counting
+domains that would bounce every message sent to them.
+
+One cross-check that the strict reading is the right one: `sonda.cl` is
+implicit-only here, and
+[ADR-0018](../adr/0018-generation-stays-in-cl-and-a-guess-says-so.md) lists
+Sonda among the companies with *no* `.cl` mail domain. That pilot was
+already applying the strict reading without saying so.
+
+## Population (b) clears it, and the two populations really differ
+
+Consejo Minero census, 9 distinct non-`.cl` domains:
+
+| | |
+|---|---|
+| Mail-capable | 6 |
+| No mail | 2 — `bhp.cl`, `south32.cl` |
+| Unreachable | 1 — `sqm.cl` |
+
+**6 of 8 reachable = 75%, 95% Wilson [40.9%, 92.9%]**, and **all six have a
+real MX record** — no implicit-MX cases at all. This is a census, so there
+is no sampling error; the interval reflects only the small denominator.
+
+ADR-0018's 8 of 13 (61.5%) was drawn from large corporates and is consistent
+with this, not with population (a). The honest summary is that **a sibling
+`.cl` mail domain is normal among large Chilean corporates and uncommon
+across Chilean organisations generally.** The hint's value depends entirely
+on who it is pointed at, which is not something a tool can know in advance.
+
+## Non-response
+
+| | Unreachable | Share |
+|---|---|---|
+| (a) | 11 of 189 | 5.8% |
+| (b) | 1 of 9 | 11.1% |
+
+Population (a)'s unreachable set is `europa.cl`, `chile.cl`, `latam.cl`,
+`ya.cl`, `myspace.cl`, `altia.cl`, `christushealth.cl`, `oneaircharter.cl`,
+`trabajosocialchile.cl`, `fundacionneruda.cl`, `ccespana.cl`.
+
+**The bias runs toward understating prevalence.** These are short,
+commercially valuable names likely to be registered and in use; a domain
+that does not exist answers NXDOMAIN quickly and lands in the definitive
+column instead. Counting every unreachable domain as mail-capable, the
+ceiling would be 95 of 189 = 50.3%, whose lower bound is 43.2% — so even the
+most favourable possible resolution of the non-response does not lift the
+strict number anywhere near the gate.
+
+## Two frame defects found during the run, neither of which changes the verdict
+
+**Shared platforms leak through.** `historiasdelorbisterrarum.wordpress.com`
+yields the base `wordpress` and so the sibling `wordpress.cl`, which is
+nobody's Chilean mail domain. Same for `sites.google.com` → `google.cl` and
+`museoszonanortechile.es.tl` → `es.cl`. The frame excluded shared hosting
+using the PSL's private section, and `blogspot.com` and `wixsite.com` are in
+it while `wordpress.com`, `sites.google.com` and `es.tl` are **not** —
+checked against the live list rather than assumed.
+
+Dropping those three siblings gives 82 of 175 = 46.9%, 95% Wilson
+[39.61%, 54.24%]. Still a miss, slightly larger.
+
+**Eleven hosts shared a sibling**, e.g. four Neruda foundation entities all
+mapping to `fundacionneruda.cl`. Deduplicated by sibling before counting, so
+one domain is one observation.
+
+## Cost
+
+- **One MX lookup per scan**, not per address, and only when the target is
+  non-`.cl`. Cached per domain for the run, the same stance
+  [ADR-0016](../adr/0016-catch-all-domains-are-not-valid.md) takes on
+  catch-all.
+- **Latency: median 5.07s, p95 7.39s.** Measured on a machine whose system
+  resolver does not answer over UDP/53 — the machine
+  [ADR-0009](../adr/0009-mx-resolution-failure-is-unknown.md) was written
+  for. The 5.07s median is the system-resolver timeout expiring before a
+  working transport is reached, not the cost of the answer.
+- **On that machine the chain still resolves**, through DNS-over-HTTPS,
+  which is exactly what ADR-0009 built it for. 200 domains took 75 minutes
+  at one query every 0.5s, all of it waiting.
+- These figures were taken **before** the nameserver fix in `ef4a7d2`. Re-run
+  over the first 20 siblings on the same machine afterwards:
+
+  | | median | p95 | total |
+  |---|---|---|---|
+  | before | 5.15s | 9.14s | 111s |
+  | after | 3.82s | 7.84s | 92s |
+
+  **Read that as indicative, not as a clean 26%.** The second pass asked for
+  the same 20 domains, so upstream resolvers had their answers cached. The
+  dominant term is the system resolver expiring rather than the answer
+  arriving, and that part does not cache, but the comparison is confounded
+  and no attempt was made to unconfound it.
+
+## A defect the cost measurement surfaced
+
+`_PUBLIC_NAMESERVERS` lists Google and Cloudflare, and Cloudflare had never
+been consulted. dnspython's `lifetime` bounds the *whole question* rather
+than each server, and `_dns_query` set `timeout` and `lifetime` both to 5.0,
+so the first server's timeout exhausted the budget and the query raised
+before the second was tried.
+
+Verified against `192.0.2.1` (TEST-NET-1, RFC 5737), which by definition
+never answers:
+
+| Settings | Result |
+|---|---|
+| `timeout=5, lifetime=5` (as shipped) | `LifetimeTimeout` at 5.01s, Google never tried |
+| `timeout=5, lifetime=15` | resolves at 5.01s |
+| after the fix, via `_dns_query` | resolves at 2.52s |
+
+Fixed in `ef4a7d2` by splitting each transport's budget across its
+nameservers, which keeps the documented total unchanged. No ADR: ADR-0009
+already decided the fallback transports exist, so this makes the code do
+what that ADR says.
+
+The DoH leg had been masking it, which is why it survived: the chain still
+resolved, one transport later and several seconds slower.
+
+## Incidental: who hosts Chilean mail
+
+MX provider of the 58 siblings with a real MX record:
+
+| Provider | Count | Share |
+|---|---|---|
+| Other / self-hosted | 27 | 47% |
+| Google | 17 | 29% |
+| Microsoft 365 | 13 | 22% |
+| Proofpoint | 1 | 2% |
+
+ADR-0017 recorded "Microsoft 365 carries 12 of 20" from its convenience
+sample. On a random draw that does not hold: Google leads Microsoft, and
+neither reaches half. Self-hosting is still the largest single category
+among these organisations.
+
+## Correction: the EUIPO figure this project has been repeating
+
+ROADMAP.md's v0.60 section says cybersquatting affects "49% of major brands
+with 26% of it on ccTLDs". Read against the study itself
+([EUIPO, *Focus on Cybersquatting: Monitoring and Analysis*, May 2021](https://euipo.europa.eu/tunnel-web/secure/webdav/guest/document_library/observatory/documents/reports/2021_Cybersquatting_Study/2021_Focus_on_Cybersquatting_Monitoring_and_Analysis_Study_ExSum_en.pdf)),
+both halves are wrong:
+
+- The 49% is **486 of 993 analysed brand-related domain names** judged
+  suspicious, not 49% of brands. The 20 brands were owned by "small, medium
+  and large entities", not major brands.
+- The 26% is the **ccTLD share of all 993 analysed domains** (257 of 993),
+  not the ccTLD share of the suspicious ones, which is 116 of 486 = 24%.
+
+The figure that actually supports "a name match is not evidence of
+ownership" is neither: **116 of 257 brand-related ccTLD domains, 45%, were
+suspicious.** That is on point and stronger than the number being quoted.
+ROADMAP.md is corrected; this note records what it said before.
+
+## What this measurement cannot say
+
+- **Population (a) and (b) were not separable within one frame.** Wikidata's
+  `P159` is missing for 205 of 383, so the Chilean-owned and
+  Chilean-subsidiary cases stay mixed in (a). (b) is a separate frame and a
+  different sector.
+- **(b) is mining.** Nine domains, one industry, the one with the longest
+  established Chilean presence. It should if anything overstate.
+- **Wikidata's notability bias is real and unquantified here.** Small
+  Chilean organisations are underrepresented, and nothing in this run
+  measures how far that moves the number.
+- **One date, one network.** Every caveat
+  [ADR-0014](../adr/0014-country-is-never-inferred-from-a-com-address.md)
+  recorded about its own sample applies here too.

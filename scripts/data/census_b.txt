@@ -1,0 +1,12 @@
+# Population (b): Consejo Minero members on a non-.cl domain, census.
+# Read live from consejominero.cl/nosotros/socios/ on 2026-07-25.
+chile.angloamerican.com
+bhp.com
+codelco.com
+glencore.com
+lundinmining.com
+bhp.com
+riotinto.com
+sqm.com
+south32.net
+teck.com
