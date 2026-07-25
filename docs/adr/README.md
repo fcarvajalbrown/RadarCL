@@ -20,3 +20,4 @@
 | [0016](0016-catch-all-domains-are-not-valid.md) | A catch-all domain is not a valid address | Accepted |
 | [0017](0017-a-reply-is-evidence-only-about-its-subject.md) | A reply is evidence only about its subject | Accepted |
 | [0018](0018-generation-stays-in-cl-and-a-guess-says-so.md) | Generation stays in `.cl`, and a guess says so | Accepted |
+| [0019](0019-the-sibling-cl-hint-is-measured-and-declined.md) | The sibling `.cl` hint is measured and declined | Accepted |

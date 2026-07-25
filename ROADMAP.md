@@ -266,32 +266,50 @@ measured and comes first for that reason; the second is not measured at
 all, and [ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)
 is what happens when an obvious-sounding source ships unmeasured.
 
-- [ ] **Sibling `.cl` mail-domain hint.** When the user targets a non-`.cl`
-      domain, check whether `<base>.cl` has a mail-capable MX and say so.
-      [ADR-0018](docs/adr/0018-generation-stays-in-cl-and-a-guess-says-so.md)
-      closed `.com` in both directions, so this is the route that remains:
-      the Chilean staff of a multinational are usually reachable at its
-      `.cl`, which RadarCL already supports fully.
+The first has now been measured and declined. That is the second time a
+v0.x item has died on its own measurement rather than on an argument, after
+the curated-source stage in v0.40, and both times the intuition was that the
+feature was obviously worth having.
 
-      Measured 2026-07-25 over thirteen companies: **eight run a
-      mail-capable `<base>.cl`**, including four of the six foreign
-      multinationals with Chilean operations (`riotinto.cl`,
-      `mail.angloamerican.cl`, `emailproxy.teck.cl`, glencore). BHP, SQM,
-      LATAM, Albemarle and Sonda have none.
+- [x] **Sibling `.cl` mail-domain hint — measured, and it does not ship.**
+      The item asked that a non-`.cl` target trigger a check of whether
+      `<base>.cl` has a mail-capable MX. A threshold was committed before
+      the run: ship only if the 95% interval's lower bound reached 40%.
 
-      **The hint states a fact and claims no ownership.** One DNS query,
-      reported as "this domain exists and accepts mail", never as "this
-      belongs to the same company". EUIPO measured cybersquatting at 49%
-      of major brands with 26% of squatted domains on ccTLDs, so a
-      name match is not evidence of ownership. Self-declaration was
-      measured too and only half-confirms: 4 of 8 `.com` homepages link to
-      the `.cl`, and 2 more `.cl` domains redirect into the `.com`, giving
-      5 of 8 corroborated and 3 real-but-unconfirmed. That is why the
-      corroboration fetches are deliberately not part of this item: a hint
-      that is silent on 3 of 8 reads as broken.
+      It reached **39.994%**. Drawn at random from a Wikidata frame of 334
+      Chilean organisations on a non-`.cl` primary domain, 84 of 178
+      reachable siblings were mail-capable — 47.2%, 95% Wilson
+      [39.99%, 54.51%].
 
-      Needs its own ADR before implementation, since where the judgement
-      sits is a decision and not a detail.
+      The margin is meaningless; the reason it does not ship is the next
+      number. `resolve_mx` honours RFC 5321's implicit MX, so a domain with
+      a web server and no mail service counts as mail-capable, and **26 of
+      those 84 have no MX record at all** — `facebook.cl`, `columbia.cl`,
+      `roche.cl`, `sonda.cl` among them. Requiring a real MX record gives
+      **58 of 178 = 32.6%, [26.1%, 39.8%]**, an interval lying entirely
+      below the gate. The hint fails once it has to mean what it says.
+
+      A census of Consejo Minero's 9 non-`.cl` member domains gives 6 of 8
+      reachable, 75%, all with real MX records. So the sibling is normal
+      among large corporates and uncommon across Chilean organisations
+      generally, which is why ADR-0018's 8-of-13 pilot read high: it was a
+      corporate sample. The tool cannot know which population a user is
+      pointing at.
+
+      Full frame, seed, intervals, non-response and cost are in
+      [docs/research/sibling-cl-prevalence.md](docs/research/sibling-cl-prevalence.md);
+      the decision is
+      [ADR-0019](docs/adr/0019-the-sibling-cl-hint-is-measured-and-declined.md).
+
+      **Correction, recorded rather than quietly fixed.** This section used
+      to say EUIPO "measured cybersquatting at 49% of major brands with 26%
+      of squatted domains on ccTLDs". Neither half survives reading the
+      study: the 49% is 486 of 993 analysed brand-related *domain names*
+      judged suspicious, across 20 brands of small, medium and large
+      entities; the 26% is the ccTLD share of all analysed domains, not of
+      the suspicious ones. The on-point figure is that **116 of 257
+      brand-related ccTLD domains, 45%, were suspicious** — which makes the
+      ownership caveat better than the number being quoted did.
 - [ ] **PGP keyserver lookup** as a new email source in
       `seed_discoverer.py` — direct theHarvester parity, plausible fit for
       `.cl` government and institutional contacts who publish keys.
