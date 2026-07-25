@@ -19,3 +19,4 @@
 | [0015](0015-no-third-party-verification-api.md) | No third-party verification API, and Stage 4 is removed | Accepted |
 | [0016](0016-catch-all-domains-are-not-valid.md) | A catch-all domain is not a valid address | Accepted |
 | [0017](0017-a-reply-is-evidence-only-about-its-subject.md) | A reply is evidence only about its subject | Accepted |
+| [0018](0018-generation-stays-in-cl-and-a-guess-says-so.md) | Generation stays in `.cl`, and a guess says so | Accepted |

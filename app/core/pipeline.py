@@ -144,7 +144,13 @@ async def crawl_and_extract(
                     evidence=page_evidence,
                 )
 
-        if pattern and target:
+        # Generated candidates are held to the same .cl scope as scraped
+        # ones. This branch had no filter at all, so a non-`.cl` target
+        # produced invented foreign addresses that the verifier then
+        # rejected as "Invalid email format" - a capability that never
+        # worked end to end (ADR-0018). Where a company has Chilean staff
+        # it usually has a `.cl` mail domain to target instead.
+        if pattern and target and target.endswith('.cl'):
             for candidate in generate_candidates(html, pattern, target):
                 if candidate not in seen:
                     seen.add(candidate)
@@ -170,18 +176,21 @@ def verify_all(
     Parameters
     ----------
     emails : Sequence[tuple]
-        Either `(email, source_url)` or `(email, source_url, evidence)`,
-        where evidence is a `Discovery.evidence` tuple. Both shapes are
+        `(email, source_url)`, `(email, source_url, evidence)`, or
+        `(email, source_url, evidence, generated)`. The shorter shapes are
         accepted because the `verify` subcommand reads bare addresses from
-        a file and has no page to draw evidence from.
+        a file and has neither a page nor a provenance to report.
     smtp_enabled : bool
         If False, skip the SMTP handshake stage.
 
     Yields
     ------
     dict
-        Keys: 'email', 'source', 'status', 'error', and 'evidence' only
-        when the input carried it. 'status' is one of 'valid', 'invalid',
+        Keys: 'email', 'source', 'status', 'error', plus 'evidence' and
+        'generated' only when the input carried them. `generated` marks an
+        address RadarCL invented from a pattern rather than found: a
+        different kind of claim, which an export that renders the two
+        identically would hide (ADR-0018). 'status' is one of 'valid', 'invalid',
         'unknown'. This is the shape `exporter.export_valid()` and the GUI
         results table consume.
 
@@ -207,4 +216,6 @@ def verify_all(
         }
         if rest:
             record['evidence'] = list(rest[0])
+        if len(rest) > 1:
+            record['generated'] = bool(rest[1])
         yield record

@@ -90,6 +90,8 @@ def _normalize(record: dict) -> dict:
     normalized = {field: record.get(field) or '' for field in FIELDS}
     if 'evidence' in record:
         normalized['evidence'] = list(record['evidence'])
+    if 'generated' in record:
+        normalized['generated'] = bool(record['generated'])
     return normalized
 
 
@@ -182,6 +184,8 @@ tr.invalid td.estado { color: #c62828; }
 td.origen { word-break: break-all; }
 td.evidencia { font-size: .88rem; }
 .sin-evidencia { color: #888; font-style: italic; }
+.generado { margin-left: .4rem; font-size: .75rem; padding: .05rem .35rem;
+            border: 1px solid #999; border-radius: 3px; color: #666; }
 a { color: inherit; }
 .nota { color: #666; font-size: .88rem; margin-top: 1.5rem;
         border-top: 1px solid #e0e0e0; padding-top: 1rem; }
@@ -235,7 +239,11 @@ def export_html(results: list[dict], path: Path) -> Path:
         )
         rows.append(
             f'<tr class="{html.escape(status)}">'
-            f'<td>{html.escape(row["email"])}</td>'
+            f'<td>{html.escape(row["email"])}'
+            + ('<span class="generado" title="Direccion generada a partir '
+               'de un patron, no encontrada publicada">generado</span>'
+               if row.get('generated') else '')
+            + '</td>'
             f'<td class="origen">{_source_cell(row["source"])}</td>'
             f'<td class="estado">{html.escape(_ROW_LABELS.get(status, status))}</td>'
             f'<td class="evidencia">{evidence_cell}</td>'

@@ -207,3 +207,54 @@ def test_verify_all_passes_smtp_flag_through(monkeypatch) -> None:
     list(pipeline.verify_all([("a@x.cl", "")], smtp_enabled=False))
 
     assert captured["smtp_enabled"] is False
+
+
+def test_generated_candidates_are_held_to_cl_scope(monkeypatch) -> None:
+    """
+    The generated branch had no filter, so a non-.cl target invented
+    foreign addresses the verifier then rejected as "Invalid email
+    format" - a path that never worked end to end (ADR-0018).
+    """
+    _with_pages(monkeypatch, [("http://a.cl", "<p>Jimmy Nunez</p>")])
+
+    found = asyncio.run(_drain(pipeline.crawl_and_extract(
+        ["http://a.cl"], target_domain="bhp.com",
+        pattern="{first}.{last}", request_delay=0
+    )))
+
+    assert found == []
+
+
+def test_generated_candidates_still_work_for_cl(monkeypatch) -> None:
+    """The capability is scoped, not removed."""
+    _with_pages(monkeypatch, [("http://a.cl", "<p>Jimmy Nunez</p>")])
+
+    found = asyncio.run(_drain(pipeline.crawl_and_extract(
+        ["http://a.cl"], target_domain="nunoa.cl",
+        pattern="{first}.{last}", request_delay=0
+    )))
+
+    assert any(d.email.endswith('@nunoa.cl') and d.generated for d in found)
+
+
+def test_a_guess_is_distinguishable_from_a_harvested_address() -> None:
+    """
+    A pattern guess and a published address are different claims. An
+    export that renders them identically hides that (ADR-0018).
+    """
+    pairs = [
+        ('real@nunoa.cl', 'https://nunoa.cl/contacto', ('lexicon',), False),
+        ('inventado@nunoa.cl', 'https://nunoa.cl/equipo', (), True),
+    ]
+    records = list(pipeline.verify_all(pairs, smtp_enabled=False))
+
+    assert records[0]['generated'] is False
+    assert records[1]['generated'] is True
+
+
+def test_generated_key_absent_when_caller_did_not_say() -> None:
+    """The verify subcommand has no provenance to report, so it says none."""
+    records = list(pipeline.verify_all(
+        [('a@nunoa.cl', '')], smtp_enabled=False
+    ))
+    assert 'generated' not in records[0]

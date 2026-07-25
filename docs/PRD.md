@@ -49,9 +49,11 @@ internal use.
   RadarCL *scrapes*. It has never applied to pattern-*generated*
   candidates, which take whatever domain the user names: this document
   called the boundary permanent for two versions while the code emitted
-  `@bhp.com` candidates on request, and that gap is closed by being stated
-  rather than by removing the capability
-  ([ADR-0014](adr/0014-country-is-never-inferred-from-a-com-address.md)).
+  `@bhp.com` candidates on request. That gap is now closed in code: pattern
+  generation is held to `.cl` too, after the `.com` path turned out never to
+  have worked end to end, and because a company with Chilean staff usually has
+  a `.cl` mail domain that RadarCL already supports
+  ([ADR-0018](adr/0018-generation-stays-in-cl-and-a-guess-says-so.md)).
 - **Not a guess at nationality.** RadarCL does not infer a country from an
   email address, and measurement says nothing else should either: a `.com`
   address carries no country, and `.cl` is a strong convention rather than
