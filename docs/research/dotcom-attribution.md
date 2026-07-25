@@ -1,15 +1,22 @@
 # Attributing a `.com` address to Chile
 
 Research notes for [ROADMAP.md](../../ROADMAP.md)'s v0.50 item, `.com`
-domain support for Chilean companies with international domains. Nothing
-here is decided. v0.50 revisits
-[ADR-0003](../adr/0003-crawl-phase1-phase2-scope.md)'s `.cl`-only email
-filter and needs its own ADR before any of this is implemented.
+domain support for Chilean companies with international domains.
 
-Dated 2026-07-24. Two kinds of claim appear below and they are labelled,
-because the difference is what makes these notes worth keeping: what was
-measured against live services here, and what was only read in a search
-result and still needs checking.
+**Decided, on the second half of this file.**
+[ADR-0014](../adr/0014-country-is-never-inferred-from-a-com-address.md)
+records the outcome and is the current statement; these notes are kept for
+the measurements behind it. The first half was written before the signals
+were tested and its ranking is wrong - jump to
+[Measured against real pages](#measured-against-real-pages-2026-07-24) if
+you are here to decide something.
+
+Dated 2026-07-24 throughout, in two passes on the same day. Three kinds of
+claim appear below and they are labelled, because the difference is what
+makes these notes worth keeping: what was reasoned about, what was
+measured against live services, and what was only read in a search result.
+The order they appear in is the order they happened, so the reasoning that
+turned out wrong is still here rather than quietly deleted.
 
 ## The question, and why it has no answer at the domain level
 
@@ -106,7 +113,16 @@ of it.
   confirming, since it also weakens the reverse inference RadarCL already
   makes about `.cl` addresses today.
 
-## The signal worth building on
+## What looked strongest before measuring
+
+**Superseded by the section below, and wrong.** The ranking here was reasoned
+from what each signal would prove if present. Nobody had checked whether the
+signals were present. When that was measured on the same day, the signal ranked
+first appeared on none of 200 pages. Read
+[Measured against real pages](#measured-against-real-pages-2026-07-24) before
+acting on anything in this section; it is kept because the reasoning below is
+still correct about what a RUT *means*, and wrong only about how often you get
+to use it.
 
 A RUT with a valid módulo-11 check digit is uniquely Chilean, and unlike
 every other signal here it verifies offline: no API, no key, no network,
@@ -131,6 +147,89 @@ Ranked by what the measurements above support:
 
 Signals 5 and 6 are weak alone and are listed because they cost nothing
 once a page is already fetched.
+
+## Measured against real pages, 2026-07-24
+
+Everything above this line was reasoned about. Everything below was run. Seven
+reachable Chilean-owned `.com` against nine foreign-owned, plus a 200-page crawl
+across `codelco.com`, `falabella.com`, `sonda.com`, `teck.com` and a `nunoa.cl`
+control. Eight of twenty-four homepages answered 403 or timed out, `bhp.com`
+among them, so a third of the target population refuses the crawler outright.
+
+| Signal | Chilean | Foreign | False negative | False positive |
+|---|---|---|---|---|
+| Valid RUT | 0/7 | 0/9 | 100% | 0% |
+| `lang="es-CL"` | 1/7 | 0/9 | 86% | 0% |
+| `+56` phone | 1/7 | 0/9 | 86% | 0% |
+| Country path segment | 1/7 | 0/9 | 86% | 0% |
+| Chilean place words | 7/7 | 4/9 | 0% | 44% |
+| Sibling `.cl` resolves | 5/7 | 5/9 | 29% | 56% |
+
+The RUT is the signal the section above calls the one worth building on. It
+appeared on **0 of 200 crawled pages** - Chilean `.com`, foreign `.com`, and ten
+`nunoa.cl` municipal pages that did carry addresses. The detector was
+self-tested first: it accepts valid check digits, rejects wrong ones, and
+ignores bare eight-digit numbers and phone-shaped strings, so the zero is the
+population's and not the code's.
+
+The sibling-`.cl` idea is not merely weak, as this file guessed. It is worse
+than a coin flip. Foreign firms hold `riotinto.cl`, `angloamerican.cl`,
+`teck.cl`, `glencore.cl` and `nestle.cl`; Chilean-owned `sqm.cl`,
+`cencosud.cl` and `latamairlines.cl` do not resolve.
+
+Six signals this file never listed were tested too, and all failed:
+
+| Signal | Chilean | Foreign | Note |
+|---|---|---|---|
+| `hreflang="es-CL"` | 0/7 | 1/9 | fires only on `albemarle.com`, a US company |
+| JSON-LD `addressCountry` | 0/16 | 0/16 | no corporate homepage publishes it |
+| Comuna gazetteer | 1/7 | 2/9 | `teck.com` names Iquique and Las Condes |
+| `SpA` legal form | 0/7 | 0/9 | large firms are S.A. |
+| Chilean institutional lexicon | 2/7 | 0/9 | `casilla`, `comuna`, `clp` |
+| National-format CL phone | 2/7 | 1/9 | numbers written without `+56` |
+
+**The unit of attribution is the page, not the company.** `teck.com` fires on a
+Chilean phone because its contact page really does list a Santiago office. Teck
+is Canadian and the signal is still right, because it reports what the page
+showed. That distinction is what [ADR-0014](../adr/0014-country-is-never-inferred-from-a-com-address.md)
+settles, and it is why place-word counting stays out: a passing mention of Chile
+in a list of global operations is not the same as an office, and counting cannot
+tell them apart.
+
+**Attribution was never the binding constraint anyway.** Addresses per page
+crawled, 40 pages each, counting every TLD:
+
+| Target | Addresses/page | What was found |
+|---|---|---|
+| `codelco.com` | 0.05 | 2, both `.cl` |
+| `falabella.com` | 0.00 | nothing |
+| `sonda.com` | 0.00 | nothing |
+| `teck.com` (foreign) | 0.45 | 18, of which 13 `@teck.com` |
+| `nunoa.cl` (control) | 0.65 | 26, of which 23 `@nunoa.cl` |
+
+### The unverified items, now queried
+
+- **Mercado Público** is real: `BuscarProveedor` answers `203 Ticket no válido`
+  without a ticket, accepts ChileCompra's published demo ticket, and rate-limits
+  at `429`. It is keyed by RUT.
+- **SII** exposes no queryable documented API. `zeus.sii.cl/cvc_cgi/stc/getstc`
+  responds but expects POST and is captcha-gated. Also keyed by RUT.
+- Both therefore need an input no page provides.
+- **IP geolocation** locates a CDN, as this file suspected: `codelco.com` serves
+  from CLOUDFLARENET, `sqm.com` from MSFT, `riotinto.com` from THALES-IMPERVA,
+  and RDAP returns no country for any of them.
+- **NIC Chile** confirmed, and it cuts against RadarCL rather than for it.
+  Article 7: "Any natural or legal person, whether domestic or foreign, may hold
+  .CL domain names." The `.cl`-implies-Chile inference the tool already makes is
+  a convention, not a guarantee.
+- **Wikidata** was not tested. Its query service refused both attempts. It is
+  the one external route recorded as untested rather than rejected.
+
+### Sample limits
+
+Sixteen reachable domains, 200 crawled pages, one date, one network. The foreign
+arm is nine domains. Enough to reject the signals that failed outright; not
+enough to justify a filter, which is why the cascade ADR-0014 ships is a flag.
 
 ## What this changes about v0.50
 
