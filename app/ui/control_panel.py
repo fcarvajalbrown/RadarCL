@@ -759,6 +759,7 @@ class ControlPanel(QWidget):
         for r in results:
             session.update_email_status(self._session_id, r['email'], r['status'])
         valid = sum(1 for r in results if r.get('status') == 'valid')
+        session.update_session_totals(self._session_id, len(results), valid)
         self._status_label.setText(
             f"Listo. {valid} correos válidos encontrados.\n"
             "Los resultados se guardaron en tu Escritorio."

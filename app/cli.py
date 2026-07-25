@@ -22,7 +22,7 @@ from app.core.exporter import export, infer_format
 from app.core.hw_profile import get_hw_profile
 from app.core.pipeline import Discovery, crawl_and_extract, verify_all
 from app.core.seed_discoverer import discover_seeds
-from app.core.session import new_session, save_email
+from app.core.session import new_session, save_email, update_session_totals
 
 
 def log(message: str, quiet: bool) -> None:
@@ -307,6 +307,11 @@ def _persist(session_id: int | None, results: list[dict]) -> None:
         save_email(
             session_id, record['email'], record['source'], record['status']
         )
+    update_session_totals(
+        session_id,
+        len(results),
+        sum(1 for r in results if r['status'] == 'valid'),
+    )
 
 
 def cmd_verify(args: argparse.Namespace) -> int:

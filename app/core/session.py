@@ -116,6 +116,37 @@ def update_email_status(session_id: int, email: str, status: str) -> None:
     conn.close()
 
 
+def update_session_totals(
+    session_id: int, total_found: int, total_valid: int
+) -> None:
+    """
+    Record how many addresses a finished session found and verified.
+
+    `sessions` has carried `total_found` and `total_valid` since the table
+    was created and nothing ever wrote them, so every row read back said a
+    session found nothing. The columns are two aggregate integers rather
+    than anything per-address, so filling them adds no personal data to a
+    store [ADR-0006](../../docs/adr/0006-sqlite-session-store-last-10-pruning.md)
+    treats as sensitive.
+
+    Parameters
+    ----------
+    session_id : int
+    total_found : int
+        Addresses discovered in the session.
+    total_valid : int
+        Of those, how many verified VALID. CATCH_ALL is excluded, matching
+        the CSV's definition of the mailable list (ADR-0016).
+    """
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE sessions SET total_found = ?, total_valid = ? WHERE id = ?",
+        (total_found, total_valid, session_id)
+    )
+    conn.commit()
+    conn.close()
+
+
 def load_session(session_id: int) -> list[dict]:
     """
     Load all emails for a given session.
