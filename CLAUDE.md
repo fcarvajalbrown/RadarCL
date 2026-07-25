@@ -246,6 +246,12 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   verification probes. A 250 from a server that also accepts invented addresses is
   CATCH_ALL, not VALID, and is kept out of the mailable CSV
   ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)).
+  **A 5xx is INVALID only when its RFC 3463 subject is about the address** (1 addressing,
+  2 mailbox); policy, routing, protocol and mail-system failures are facts about the
+  sender or the path, so they are UNKNOWN, and `X.2.2` (mailbox full) proves the mailbox
+  exists ([ADR-0017](docs/adr/0017-a-reply-is-evidence-only-about-its-subject.md)).
+  The probe announces this host's own FQDN, overridable with `RADARCL_HELO`, and the
+  null sender. It used to announce `verify.cl`, a domain the project does not own.
 - `app/core/hw_profile.py` — detects RAM/CPU at startup and picks a `low`/`medium`/`high`
   tier (concurrency, request delay, max pages) so the app doesn't overwhelm low-spec
   hardware; the tier badge is surfaced in the control panel UI.
