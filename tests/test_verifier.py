@@ -460,3 +460,33 @@ def test_helo_override_is_honoured(monkeypatch) -> None:
     """Anyone with a real domain and a PTR record should use it."""
     monkeypatch.setenv('RADARCL_HELO', 'mail.ejemplo.cl')
     assert verifier._helo_name() == 'mail.ejemplo.cl'
+
+
+def test_mailbox_full_is_not_invalid(monkeypatch) -> None:
+    """
+    X.2.2 is "mailbox full", which proves the mailbox exists. INVALID is
+    plainly wrong; VALID would put a bouncing address in the CSV.
+    """
+    _patch_msg(monkeypatch, (552, b'5.2.2 Mailbox full'))
+    result = verifier.verify('lleno@nunoa.cl')
+
+    assert result.status is verifier.VStatus.UNKNOWN
+    assert 'exists' in result.error
+
+
+def test_mailbox_disabled_is_invalid(monkeypatch) -> None:
+    """X.2.1 is a disabled mailbox: a hard bounce, suppress it."""
+    _patch_msg(monkeypatch, (550, b'5.2.1 Mailbox disabled'))
+    assert verifier.verify('a@nunoa.cl').status is verifier.VStatus.INVALID
+
+
+def test_protocol_error_is_not_about_the_address(monkeypatch) -> None:
+    """X.5.x is about this conversation, not about the recipient."""
+    _patch_msg(monkeypatch, (500, b'5.5.2 Syntax error, command unrecognized'))
+    assert verifier.verify('a@nunoa.cl').status is verifier.VStatus.UNKNOWN
+
+
+def test_mail_system_error_is_not_about_the_address(monkeypatch) -> None:
+    """X.3.x is their mail system having a problem."""
+    _patch_msg(monkeypatch, (554, b'5.3.0 Other mail system problem'))
+    assert verifier.verify('a@nunoa.cl').status is verifier.VStatus.UNKNOWN

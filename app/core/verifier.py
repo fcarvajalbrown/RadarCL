@@ -6,10 +6,12 @@ Stages (run in order):
   2. MX      — DNS MX lookup with fallback transports; a nonexistent
                domain is invalid, an unanswerable resolver is unknown
                (ADR-0009)
-  3. SMTP    — handshake without sending email; 250 valid,
-               5xx invalid, 4xx/252 unknown (ADR-0007). A 250 from a
-               server that accepts every recipient is CATCH_ALL, not
-               VALID (ADR-0016)
+  3. SMTP    — handshake without sending email. 250 is VALID, unless the
+               server accepts every recipient, which is CATCH_ALL
+               (ADR-0016). 4xx and 252 are UNKNOWN. A 5xx is INVALID only
+               when its RFC 3463 subject says it is about the address;
+               policy, routing and protocol failures are facts about the
+               sender or the path, so they are UNKNOWN too
 
 Three stages, not four. A fourth "optional third-party API" stage existed
 as a placeholder until v0.55 and was removed rather than built: no
@@ -49,11 +51,28 @@ _PROBE_LOCAL_BYTES = 10  # 20 hex characters
 # RFC 3463 enhanced status code, e.g. `550 5.1.1 ...` or `451 4.7.1 ...`.
 _ENHANCED_RE = re.compile(rb'\b([245])\.(\d+)\.(\d+)\b')
 
-# Enhanced subclasses of a 5xx that describe the sender or the policy
-# rather than the mailbox. 5.7.x is authentication or policy ("you are not
-# allowed"), 5.4.x is routing. Both are permanent facts about *us*, and a
-# permanent fact about us is not evidence the address is dead.
-_5XX_NOT_ABOUT_THE_MAILBOX = {4, 7}
+# RFC 3463's middle digit is the *subject*: which part of the mail system
+# the status is about. Only two subjects speak about the recipient at all.
+#
+#   1  addressing   the address itself       -> about the mailbox
+#   2  mailbox      the mailbox itself       -> about the mailbox
+#   3  mail system  their system             -> about them
+#   4  network      routing                  -> about the path
+#   5  protocol     this conversation        -> about us
+#   6  content      the message              -> about the message
+#   7  security     policy, authentication   -> about us
+#
+# A permanent failure with subject 3 through 7 is a permanent fact about
+# something other than the address, so it cannot be evidence the address
+# is dead. Reading every 5xx as INVALID marked live addresses dead in the
+# CSV, which is the error ADR-0009 fixed for DNS, one stage later.
+_SUBJECTS_ABOUT_THE_MAILBOX = {1, 2}
+
+# The exception inside subject 2: X.2.2 is "mailbox full". A full mailbox
+# is proof the mailbox *exists*, so INVALID is plainly wrong. It is not
+# VALID either, since mail to it bounces today, and the CSV is the list
+# you send to. It is the textbook UNKNOWN: real, and not deliverable now.
+_MAILBOX_FULL = (2, 2)
 
 # Text a server uses when it is deferring rather than refusing. A 4xx is
 # already UNKNOWN; this marks the subset worth asking again, since
@@ -82,13 +101,13 @@ _SYNTAX_RE = re.compile(
 )
 
 
-def _subclass(msg: bytes | str | None) -> int | None:
-    """Return the middle digit of an RFC 3463 code, or None if absent."""
+def _enhanced(msg: bytes | str | None) -> tuple[int, int] | None:
+    """Return (subject, detail) of an RFC 3463 code, or None if absent."""
     if msg is None:
         return None
     raw = msg if isinstance(msg, bytes) else str(msg).encode('utf-8', 'replace')
     match = _ENHANCED_RE.search(raw)
-    return int(match.group(2)) if match else None
+    return (int(match.group(2)), int(match.group(3))) if match else None
 
 
 def _looks_greylisted(code: int, msg: bytes | str | None) -> bool:
@@ -274,15 +293,22 @@ def verify(
                 # reporting it INVALID marks working addresses dead for
                 # everyone who reads the CSV. Same error ADR-0009 fixed
                 # for DNS, one stage later.
-                if _subclass(msg) in _5XX_NOT_ABOUT_THE_MAILBOX:
+                enhanced = _enhanced(msg)
+                if enhanced == _MAILBOX_FULL:
                     result.status = VStatus.UNKNOWN
                     result.error = (
-                        f"SMTP RCPT code {code}: refused by policy, which "
-                        f"says nothing about this address"
+                        f"SMTP RCPT code {code}: mailbox full, so it exists "
+                        f"but will not take mail right now"
                     )
-                else:
+                elif enhanced is None or enhanced[0] in _SUBJECTS_ABOUT_THE_MAILBOX:
                     result.status = VStatus.INVALID
                     result.error = f"SMTP RCPT code {code}"
+                else:
+                    result.status = VStatus.UNKNOWN
+                    result.error = (
+                        f"SMTP RCPT code {code}: refused over policy, routing "
+                        f"or protocol, which says nothing about this address"
+                    )
             else:
                 # 4xx is transient by definition (450/451 greylisting,
                 # 421 rate-limiting) and 252 means the server says it
