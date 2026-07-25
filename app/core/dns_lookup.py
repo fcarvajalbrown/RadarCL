@@ -197,10 +197,23 @@ def resolve_mx(domain: str) -> str:
 
     for transport in transports:
         try:
-            return transport(domain)
+            host = transport(domain)
         except DomainNotFound:
             raise
         except MXUnavailable as exc:
             failures.append(str(exc))
+            continue
+
+        # RFC 7505 "null MX": a single MX of `.` is the domain stating that
+        # it accepts no mail at all. That is a definitive answer, not a
+        # missing one, so it belongs with DomainNotFound rather than with
+        # the timeouts ADR-0009 put in UNKNOWN. Without this the host `.`
+        # is handed to the SMTP stage, which fails to connect and reports
+        # UNKNOWN, turning an explicit "no" into "we could not tell".
+        if host.strip().rstrip('.') == '':
+            raise DomainNotFound(
+                f'{domain} publishes a null MX (RFC 7505): it accepts no mail'
+            )
+        return host
 
     raise MXUnavailable('; '.join(failures))
