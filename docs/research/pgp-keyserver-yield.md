@@ -137,5 +137,97 @@ rather than a point estimate — the same discipline the sibling run used.
 
 ---
 
-*Results are appended below this line once the run completes. Nothing above it
-is edited afterwards.*
+*Everything above was committed in `6e7326c` before the run. Below is the run.*
+
+# Results, 2026-07-25
+
+## The pilot overstated the source by roughly 400 times
+
+| | Pilot, 8 recognisable targets | Random draw, n=100 |
+|---|---|---|
+| Addresses per request | ~32 | **0.08** |
+| Domains with any keys | 6 of 8 | **7 of 100** |
+| Distinct addresses | 253 | **16** |
+
+200 requests, 189 answered, 11 non-response. **Live yield 0.08 per request,
+interval [0.06, 0.08], against a gate of 0.65. Missed by about eight times.**
+
+Every address recovered from a hundred Chilean organisations:
+
+| Domain | Addresses |
+|---|---|
+| `inacap.cl` | 9 |
+| `minera.cl` | 2 |
+| `bcn.cl`, `contraloria.cl`, `senado.cl`, `uda.cl`, `municipalidadillapel.cl` | 1 each |
+
+The gap between the two columns is the entire lesson. The pilot used
+ADR-0013's target list, which contains two universities out of eight, and
+universities are where PGP keys live. Picking recognisable targets overstated
+a source by two and a half orders of magnitude, in the same session that
+declined the sibling hint for the same class of error.
+
+## Liveness is weak evidence, and it does not matter
+
+60 were to be verified; only 16 existed, so all 16 were.
+
+| Status | Count |
+|---|---|
+| VALID | 0 |
+| CATCH_ALL | 0 |
+| UNKNOWN | 15 |
+| INVALID | 1 |
+
+15 of 16 = 93.8%, [71.7%, 98.9%]. Counted as live per
+[ADR-0009](../adr/0009-mx-resolution-failure-is-unknown.md), and the phrase
+that fits is **not disproved** rather than confirmed: no address was
+positively verified. The same servers that hung up on 35% of the catch-all
+run hung up here.
+
+It changes nothing. At 100% live the yield is still 0.08.
+
+## `pgp.mit.edu` is as unreliable as its reputation
+
+| Keyserver | Addresses | Failed requests |
+|---|---|---|
+| `keyserver.ubuntu.com` | 12 | 0 of 100 |
+| `pgp.mit.edu` | 14 | **11 of 100** (7 × HTTP 408, 4 × protocol error) |
+
+A source resting on MIT would carry an 11% failure rate. Ubuntu's server was
+flawless and cheaper, and on its own recovers 12 of the 16.
+
+## The entity breakdown is unreliable, and that is a finding
+
+| Detected type | Domains | With keys | Addresses |
+|---|---|---|---|
+| company | 67 | 3 | 12 |
+| government | 4 | 3 | 3 |
+| municipality | 25 | 1 | 1 |
+| university | 4 | 0 | 0 |
+
+**`detect_entity_type` mislabelled every domain in the university bucket.**
+The four were `editorialusach.cl` (a publisher), `huachipatofc.cl` (a football
+club), `mguc.cl` and `supereduc.cl` (the schools regulator). Substring
+matching on `usach`, `uc` and `educ` does that.
+
+Two consequences, and the second matters more:
+
+- The breakdown above cannot be read as "universities have no keys".
+- **No real university was drawn**, so this run does not test the case the
+  pilot was strongest on. INACAP, the one higher-education institution in the
+  sample, produced 9 of the 16 addresses, which is consistent with the pilot's
+  `uchile.cl` result without confirming it.
+
+The gate is population-wide, so this does not rescue the source: universities
+are rare among the organisations a user targets, and a source that pays off
+only there has to be measured there before it can claim so.
+
+## Limits
+
+- **Duplication was never measured**, as the pre-registration said it would
+  not be. Whether these 16 addresses are ones the crawler would find anyway is
+  unknown. Since the source fails on yield alone, the question is moot; had it
+  passed, it would have been the next thing to run.
+- **One date, one network**, and the SKS network's contents change slowly but
+  its availability does not.
+- **The classifier defect is not fixed here.** It is recorded and left, since
+  fixing it changes seed discovery's behaviour and belongs in its own change.
