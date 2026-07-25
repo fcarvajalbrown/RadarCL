@@ -22,3 +22,4 @@
 | [0018](0018-generation-stays-in-cl-and-a-guess-says-so.md) | Generation stays in `.cl`, and a guess says so | Accepted |
 | [0019](0019-the-sibling-cl-hint-is-measured-and-declined.md) | The sibling `.cl` hint is measured and declined | Accepted |
 | [0020](0020-a-convenience-sample-overstated-a-source-400-times.md) | A convenience sample overstated a source 400 times | Accepted |
+| [0021](0021-an-address-a-reader-cannot-see-is-not-a-contact.md) | An address a reader cannot see is not a contact | Accepted |

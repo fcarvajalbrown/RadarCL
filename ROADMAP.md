@@ -348,23 +348,34 @@ commercial email-finders work.
       [docs/research/pgp-keyserver-yield.md](docs/research/pgp-keyserver-yield.md);
       not fixed here, because it changes which seeds every scan produces.
 
-- [ ] **Stop harvesting spam traps.** `extract_emails` reads text and
-      `mailto:` links out of elements hidden by CSS, so a honeypot planted
-      in a `display:none` div, white-on-white text or a `font-size:0` link
-      is collected and lands in the CSV — the file
-      [ADR-0010](docs/adr/0010-export-contents-differ-by-format.md) defines
-      as the mailable deliverable. Checked against crafted markup: **five of
-      six honeypot-style addresses were extracted.** Those addresses have
-      never belonged to a person and exist to catch harvesters; mailing one
-      is grounds for Spamhaus listing, which poisons the sender's whole
-      domain.
+- [x] **Stop harvesting spam traps.** `extract_emails` read text and
+      `mailto:` links out of the whole document, so a honeypot planted in a
+      `display:none` div, in white-on-white text or behind a `font-size:0`
+      link was collected like any other address and landed in the CSV — the
+      file [ADR-0010](docs/adr/0010-export-contents-differ-by-format.md)
+      defines as the mailable deliverable, and the one the GUI writes to the
+      Desktop automatically. Checked against crafted markup before anything
+      changed: **five of six placements were extracted**, and the fix now
+      recognises eight.
 
-      Needs a measurement of how often `.cl` sites plant them, and an ADR,
-      before it ships. The gate is a different kind from items 1 and 2:
-      those asked whether a source was worth its request, and a low number
-      killed them. This asks how often the current code poisons the mailable
-      list, where any non-zero rate is a defect — so the measurement sizes
-      the harm rather than deciding whether to fix it.
+      Those addresses have never belonged to a person. They sit in hidden
+      markup so that whoever mails them identifies themselves as having
+      harvested the address, and one delivery is grounds for a Spamhaus
+      listing that attaches to the sending domain — costing every other
+      address in the file, not just the trap.
+
+      Flagged rather than dropped, and excluded from the CSV only, which is
+      the split ADR-0010 already draws and the exclusion ADR-0016 already
+      gives catch-all. Marked only when *every* occurrence on the page was
+      hidden, since sites repeat contacts inside collapsed menus constantly.
+      See [ADR-0021](docs/adr/0021-an-address-a-reader-cannot-see-is-not-a-contact.md).
+
+      **No measurement was run, unlike items 1 and 2.** The defect was
+      already demonstrated and any non-zero rate is a defect rather than a
+      number to weigh, so there was nothing for a gate to decide. The cost
+      is that **how often `.cl` sites actually plant traps is unknown** —
+      recorded here rather than left to be assumed from the version's other
+      entries.
 
 - [ ] **Decode Cloudflare-obfuscated addresses.** Cloudflare replaces
       `mailto:` with `/cdn-cgi/l/email-protection#<hex>`, a single-byte XOR
