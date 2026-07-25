@@ -165,25 +165,40 @@ scope, distributed crawling).
       for `nunoa.cl`, five absent from crt.sh) and deferred: it is HTML
       scraping with no API contract. See
       [ADR-0011](docs/adr/0011-ct-fallback-and-source-hygiene.md).
-- [x] Curated Chile-specific sources replaced rather than extended. Fetching
-      all eight hardcoded entries found five wrong or dead:
-      `transparencia.cl` is a content blog rather than the state portal,
-      `munitel.cl` is now a real-estate site, `cna.cl` is the Centro Nacional
-      de Arbitrajes, and `fach.cl` is the Air Force and unreachable. The
-      replacements include `leylobby.gob.cl`, which publishes named public
-      officials by statute.
-- [x] A live test under the `smtp` marker refetches every curated source and
-      checks it still names its own institution, so a source that keeps
-      answering 200 while becoming something else fails too. Three of the four
-      removed sources were doing exactly that. `pytest -m "not smtp"` stays
-      offline. See [ADR-0012](docs/adr/0012-curated-sources-assert-identity.md).
+- [x] The curated-source stage was rebuilt, guarded, measured and then
+      removed. Its eight hardcoded entries were first replaced after five
+      turned out wrong or dead (`transparencia.cl` a content blog,
+      `munitel.cl` a real-estate site, `cna.cl` an arbitration centre,
+      `fach.cl` the Air Force and unreachable), and a live `smtp`-marked
+      test was added so a source that keeps answering 200 while becoming
+      something else fails too
+      ([ADR-0012](docs/adr/0012-curated-sources-assert-identity.md)).
+- [x] Measuring the stage end to end then showed it returns nothing. Its
+      link scoring never fired: no curated homepage carries an anchor
+      naming the target, across all thirteen source-target pairs. Crawling
+      the twelve sources alone for 451 pages harvested 97 `.cl` addresses
+      and not one belonging to any of eight targets. On seven of those
+      eight, `max_seeds=20` truncation discarded the stage's seeds
+      entirely; on the eighth they took 60% of the crawl budget for no
+      addresses. The stage, `_KNOWN_SOURCES` and the identity guard were
+      removed, and DuckDuckGo moved up to stage 4
+      ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)).
+- [x] `crawler.py` sends the browser User-Agent, reversing ADR-0011's split.
+      `portaltransparencia.cl` and `anid.cl` answer 403 to the old token, so
+      the crawler fetched zero pages from two sites the stage was seeding it.
+
+So v0.40 shipped the Certificate Transparency half of its source-breadth
+goal and disproved the other half. The curation claim in
+[PRD.md](docs/PRD.md) has no implementation behind it as of this version.
 
 **Relevant ADRs:** [0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)
-(why the chain returns empty instead of raising when a source has no records,
-and why five named sources were removed),
-[0012](docs/adr/0012-curated-sources-assert-identity.md) (why reachability is
-not evidence a source is still itself, with the measurements behind the two
-detection methods weighed).
+(why the chain returns empty instead of raising when a source has no records;
+its curated-source half is now void),
+[0012](docs/adr/0012-curated-sources-assert-identity.md) (superseded, kept
+for the drift-detection measurements it records),
+[0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md) (the
+measurement, and why a stage that cannot be shown to contribute is removed
+rather than maintained).
 
 ### v0.45 — PGP keyserver source
 **Status:** Not Started

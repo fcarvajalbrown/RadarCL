@@ -16,7 +16,7 @@ las herramientas de OSINT y civic-tech normalmente tienen que armar a mano
 para este dominio: descubrimiento de semillas sensible al tipo de entidad
 (registros de Certificate Transparency vía crt.sh, con CertSpotter de
 respaldo cuando crt.sh no contesta, verificación de actividad por DNS,
-puntuación semántica de enlaces y fuentes chilenas curadas), un
+y puntuación semántica de enlaces), un
 rastreador por fases que se mantiene acotado
 a `.cl` por defecto, extracción de correos con desofuscación, y
 verificación por etapas (sintaxis → MX → SMTP).

@@ -69,7 +69,12 @@ should grow toward. Three traits worth naming directly:
   more data sources (many needing API keys). Overkill for RadarCL's current
   single-purpose seed discovery, but the source list itself (Censys,
   SecurityTrails, Netlas, etc.) is a useful reference for what
-  `_KNOWN_SOURCES` in `seed_discoverer.py` could eventually expand to.
+  `seed_discoverer.py` could eventually draw on. Note that the curated
+  Chilean source list this line originally pointed at no longer exists:
+  it was measured at zero recovered addresses and removed in v0.4.0
+  ([ADR-0013](../adr/0013-curated-source-stage-removed-after-measurement.md)),
+  so treat "more sources" as a hypothesis this project has already
+  falsified once.
 - **CertSpotter / MerkleMap** — listed here in the original survey as
   interchangeable Certificate Transparency alternatives to crt.sh. Measuring
   them on 2026-07-24 for v0.40 showed they are not comparable. CertSpotter

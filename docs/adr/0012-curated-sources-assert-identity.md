@@ -1,7 +1,7 @@
 # 0012 - Curated sources assert their identity, not just their availability
 
 ## Status
-Accepted
+Superseded by [0013](0013-curated-source-stage-removed-after-measurement.md)
 
 ## Date
 2026-07-24

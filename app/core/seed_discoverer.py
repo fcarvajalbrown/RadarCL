@@ -18,16 +18,20 @@ using a cascading, self-improving pipeline:
      → scores every internal link by email-hunting relevance
      → scoring table adapts to entity type
 
-  4. Known high-value Chilean sources per entity type
-     → subdere.gov.cl, portaltransparencia.cl, leylobby.gob.cl etc.
-     → always included, no user action required
-
-  5. DuckDuckGo search (optional)
+  4. DuckDuckGo search (optional)
      → targeted queries built from confirmed live subdomains
      → fills remaining seed slots
 
 Silent failure on every stage — if a source fails, the next runs.
 Seeds can be on any domain — email filter in crawler enforces .cl target.
+
+A curated-source stage sat between 3 and DuckDuckGo, seeding a hardcoded
+list of Chilean institutional sites. It was measured end to end and
+removed: across twelve sources and eight targets it recovered no address
+belonging to any target, and on the one target where its seeds survived
+truncation it took 60% of the crawl budget for nothing (ADR-0013).
+DuckDuckGo moves up into its number. Entity detection stays, since the
+scoring tables and the DuckDuckGo queries both read it.
 """
 
 import asyncio
@@ -40,6 +44,8 @@ from urllib.parse import urljoin, urlparse, quote
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core.crawler import USER_AGENT
+
 
 class CTUnavailable(Exception):
     """
@@ -49,15 +55,6 @@ class CTUnavailable(Exception):
     subdomains. Distinct from a source answering with no records, which is
     an answer - see ADR-0011.
     """
-
-
-# Sent by every request this module makes. Two of the curated sources in
-# _KNOWN_SOURCES reject a bare non-browser token with 403.
-_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
-)
 
 
 # ── Entity types
@@ -191,75 +188,6 @@ _CL_MUNICIPALITIES: set[str] = {
     "vilcun.cl", "villalegre.cl", "villalemana.cl", "villarrica.org",
     "vinadelmarchile.cl", "vitacura.cl", "muniyerbasbuenas.cl", "yumbel.cl",
     "yungay.cl", "munizapallar.cl",
-}
-
-# Known high-value Chilean sources per entity type. Always included
-# regardless of what other stages find - this curation, not source volume,
-# is what the PRD claims as the difference from a generic OSINT tool.
-#
-# Each entry maps a URL to a phrase its page must contain. The phrase is
-# not decoration and it is not a comment: `tests/test_seed_discoverer.py`
-# fetches every URL under the `smtp` marker and fails if the phrase is
-# gone. Four earlier entries had quietly turned into something else and a
-# reachability check would have passed all of them, so identity is
-# asserted rather than assumed (ADR-0012).
-#
-# Pick a phrase that names the institution, not one from its navigation or
-# its current campaign. It has to survive a redesign and die with a change
-# of owner. Every phrase below was confirmed against the live page on
-# 2026-07-24; matching is done on visible text, lowercased, with HTML
-# entities unescaped.
-#
-# Removed 2026-07-24, with the reason (ADR-0011):
-#   transparencia.cl  - a generic content blog, not the state transparency
-#                       portal. That is portaltransparencia.cl.
-#   munitel.cl        - now a real-estate listings site.
-#   cna.cl            - the Centro Nacional de Arbitrajes. The accreditation
-#                       commission is cnachile.cl, whose certificate chain
-#                       does not validate under httpx.
-#   fach.cl           - the Chilean Air Force, and unreachable besides.
-_KNOWN_SOURCES: dict[EntityType, dict[str, str]] = {
-    EntityType.MUNICIPALITY: {
-        # Subsecretaria de Desarrollo Regional y Administrativo.
-        'https://www.subdere.gov.cl': 'subdere',
-        # Sistema Nacional de Informacion Municipal: per-comuna records.
-        'https://www.sinim.gov.cl': 'sistema nacional de información municipal',
-        # Portal de Transparencia del Estado, which every municipality
-        # is legally obliged to publish through.
-        'https://www.portaltransparencia.cl':
-            'portal de transparencia del estado',
-    },
-    EntityType.GOVERNMENT: {
-        # Biblioteca del Congreso Nacional.
-        'https://www.bcn.cl': 'biblioteca del congreso nacional',
-        'https://www.portaltransparencia.cl':
-            'portal de transparencia del estado',
-        # Ley del Lobby: named public officials (sujetos pasivos) with
-        # their institution, published by statute. The closest thing Chile
-        # has to a public directory of government staff.
-        'https://www.leylobby.gob.cl': 'ley del lobby',
-    },
-    EntityType.UNIVERSITY: {
-        # MINEDUC's higher-education portal.
-        'https://www.mifuturo.cl': 'mineduc',
-        # CRUCh, the rectors' council. cruch.cl does not resolve; this is
-        # the working domain.
-        'https://www.consejoderectores.cl': 'universidades chilenas',
-        # Agencia Nacional de Investigacion y Desarrollo, where academic
-        # contacts concentrate.
-        'https://www.anid.cl': 'anid',
-    },
-    EntityType.COMPANY: {
-        # Comision para el Mercado Financiero.
-        'https://www.cmfchile.cl': 'cmf chile',
-        # Direccion de Compras y Contratacion Publica: every firm that
-        # sells to the state appears here.
-        'https://www.chilecompra.cl': 'chilecompra',
-        # Sociedad de Fomento Fabril, the industrial federation.
-        'https://www.sofofa.cl': 'sofofa',
-        # Camara de Comercio de Santiago.
-        'https://www.ccs.cl': 'cámara de comercio de santiago',
-    },
 }
 
 # Base scores apply to all entity types
@@ -679,9 +607,9 @@ async def _semantic_seeds_from_url(
     Parameters
     ----------
     base_url : str
-        URL to fetch and analyse.
+        URL to fetch and analyse. Always a page on the target domain.
     domain : str
-        Target domain — only keep links mentioning this domain.
+        Target domain — only keep links whose *host* carries it.
     entity_type : EntityType
         Used to select the appropriate scoring table.
     client : httpx.AsyncClient
@@ -699,7 +627,6 @@ async def _semantic_seeds_from_url(
             return []
 
         soup = BeautifulSoup(resp.text, 'lxml')
-        base_host = urlparse(base_url).netloc.lower()
 
         for tag in soup.find_all('a', href=True):
             href = str(tag['href']).strip()
@@ -709,17 +636,13 @@ async def _semantic_seeds_from_url(
             if parsed.scheme not in ('http', 'https'):
                 continue
 
-            host = parsed.netloc.lower()
-
-            # For known sources: keep any link mentioning the target domain
-            # For target domain pages: keep only internal links
-            is_known_source = base_host not in domain
-            if is_known_source:
-                if domain not in full.lower():
-                    continue
-            else:
-                if domain not in host:
-                    continue
+            # Keep internal links only. This used to branch on whether the
+            # page being read was the target's or a curated source's, and
+            # the curated branch matched the domain anywhere in the URL
+            # rather than in the host - which is why an off-site link
+            # carrying `?ref=nunoa.cl` counted as internal (ADR-0013).
+            if domain not in parsed.netloc.lower():
+                continue
 
             score = _score_link(full, entity_type)
             if score >= _MIN_SCORE:
@@ -803,8 +726,7 @@ async def discover_seeds(
     1. Certificate Transparency → real subdomains, crt.sh then CertSpotter
     2. DNS verification → confirm which subdomains are alive
     3. Semantic scoring → score internal links on live pages
-    4. Known Chilean sources → subdere.gov.cl, portaltransparencia.cl etc.
-    5. DuckDuckGo (optional) → targeted queries using live subdomains
+    4. DuckDuckGo (optional) → targeted queries using live subdomains
 
     Seeds can be on any domain — the crawler's email filter
     enforces the .cl target pattern regardless of seed origin.
@@ -838,7 +760,7 @@ async def discover_seeds(
 
     async with httpx.AsyncClient(
         follow_redirects=True,
-        headers={"User-Agent": _USER_AGENT},
+        headers={"User-Agent": USER_AGENT},
     ) as client:
 
         # Stage 1: Certificate Transparency — get real subdomains.
@@ -869,21 +791,7 @@ async def discover_seeds(
         scored_links.sort(reverse=True)
         add([url for _, url in scored_links])
 
-        # Stage 4: Known high-value Chilean sources. Iterating the mapping
-        # yields its URLs; the identity phrases are for the guard in
-        # tests/test_seed_discoverer.py, not for the crawl.
-        known = _KNOWN_SOURCES.get(entity_type, {})
-        for source_url in known:
-            # Always add the source itself as a seed
-            add([source_url])
-            # Score its links for target domain mentions
-            links = await _semantic_seeds_from_url(
-                source_url, domain, entity_type, client
-            )
-            scored_links = sorted(links, reverse=True)
-            add([url for _, url in scored_links])
-
-        # Stage 5: DuckDuckGo (optional)
+        # Stage 4: DuckDuckGo (optional)
         if use_duckduckgo and len(seeds) < max_seeds:
             add(await _duckduckgo_seeds(
                 domain, live_urls, entity_type, client

@@ -2,8 +2,8 @@
 Unit tests for seed discovery.
 
 Everything here is offline by default: each Certificate Transparency
-source is replaced with a stub and no request leaves the machine. The two
-tests that do reach the network carry the `smtp` marker, which in this
+source is replaced with a stub and no request leaves the machine. The one
+test that does reach the network carries the `smtp` marker, which in this
 project means "needs a live internet connection", so:
 
     pytest -m "not smtp"        # offline, the default suite
@@ -14,22 +14,21 @@ Run with:
 """
 
 import asyncio
-import html
-import re
 
 import httpx
 import pytest
 
 from app.core import seed_discoverer
+from app.core.crawler import USER_AGENT
 from app.core.seed_discoverer import (
     CTUnavailable,
-    EntityType,
     _certspotter_subdomains,
     _crtsh_subdomains,
     _ct_subdomains,
-    _KNOWN_SOURCES,
+    _semantic_seeds_from_url,
     detect_entity_type,
     discover_seeds,
+    EntityType,
 )
 
 
@@ -125,9 +124,10 @@ def test_every_source_failing_raises(monkeypatch) -> None:
 class _Response:
     """Minimal httpx.Response stand-in."""
 
-    def __init__(self, status_code: int, payload=None) -> None:
+    def __init__(self, status_code: int, payload=None, text: str = "") -> None:
         self.status_code = status_code
         self._payload = payload
+        self.text = text
 
     def json(self):
         return self._payload
@@ -232,174 +232,81 @@ def test_discover_seeds_survives_total_ct_failure(monkeypatch) -> None:
     assert 'https://www.nunoa.cl' in seeds
 
 
-# ── Curated sources
+# ── Link scoring
 
-def test_every_entity_type_has_curated_sources() -> None:
-    """No entity type may fall through stage 4 with nothing."""
-    for entity_type in EntityType:
-        assert _KNOWN_SOURCES.get(entity_type), entity_type
-
-
-def test_every_source_declares_an_identity_phrase() -> None:
-    """
-    A URL with no phrase is a source nothing can check.
-
-    The mapping shape makes this hard to get wrong, which is the point of
-    using one, but the guard is cheap and the cost of a missing phrase is
-    a source that silently goes unverified for years.
-    """
-    for entity_type, sources in _KNOWN_SOURCES.items():
-        for url, phrase in sources.items():
-            assert phrase.strip(), f"{entity_type}: {url} has no phrase"
-            assert phrase == phrase.lower(), (
-                f"{url}: {phrase!r} must be lowercase, since matching is"
-                f" done against lowercased text"
-            )
+def _page(markup: str):
+    """Build a client stub whose every GET returns `markup`."""
+    class _Client:
+        @staticmethod
+        async def get(*args, **kwargs):
+            return _Response(200, text=markup)
+    return _Client()
 
 
-def test_identity_phrases_are_not_trivially_generic() -> None:
-    """
-    A phrase has to be specific enough to die with a change of owner.
+def _links(markup: str, domain: str = 'nunoa.cl') -> list[str]:
+    """Score a page's links and return the URLs kept, best first."""
+    scored = asyncio.run(
+        _semantic_seeds_from_url(
+            f"https://{domain}/", domain, EntityType.MUNICIPALITY,
+            _page(markup),
+        )
+    )
+    return [url for _, url in scored]
 
-    'contacto' or 'chile' would survive munitel.cl becoming a property
-    site, which would make the guard worse than useless: it would report
-    green while the crawler indexed apartment listings.
-    """
-    too_generic = {
-        'chile', 'contacto', 'inicio', 'gobierno', 'portal', 'sitio',
-        'home', 'noticias', 'servicios',
+
+def test_scoring_keeps_relevant_internal_links() -> None:
+    """The entity scoring table decides, and ranks what it keeps."""
+    kept = _links(
+        '<a href="/transparencia/funcionarios">f</a>'
+        '<a href="/contacto">c</a>'
+        '<a href="/programas">p</a>'
+        '<a href="/noticias/2026">n</a>'
+    )
+    # 'funcionarios' and 'contacto' both score 10, 'programas' 3, and
+    # 'noticias' is not in either table so it never reaches the list.
+    assert 'https://nunoa.cl/noticias/2026' not in kept
+    assert set(kept) == {
+        'https://nunoa.cl/transparencia/funcionarios',
+        'https://nunoa.cl/contacto',
+        'https://nunoa.cl/programas',
     }
-    for sources in _KNOWN_SOURCES.values():
-        for url, phrase in sources.items():
-            assert phrase not in too_generic, f"{url}: {phrase!r}"
+    assert kept[-1] == 'https://nunoa.cl/programas'
 
 
-def test_a_repeated_source_declares_one_identity() -> None:
+def test_an_offsite_link_naming_the_domain_is_not_internal() -> None:
     """
-    portaltransparencia.cl appears under two entity types.
+    The domain has to be in the host, not just somewhere in the URL.
 
-    Two entity types disagreeing about what a URL is means one of them is
-    wrong, and the live check would then pass or fail depending on which
-    entry it happened to read.
+    The curated-source stage used to seed institutional sites and matched
+    their links on the domain appearing anywhere in the URL, so a tracking
+    or referrer parameter read as an internal page. That stage is gone
+    (ADR-0013) and the loose match went with it.
     """
-    seen: dict[str, str] = {}
-    for sources in _KNOWN_SOURCES.values():
-        for url, phrase in sources.items():
-            assert seen.setdefault(url, phrase) == phrase, url
-
-
-def test_removed_sources_stay_removed() -> None:
-    """
-    Four entries had rotted into something else and were taken out.
-
-    transparencia.cl is a content blog rather than the state portal,
-    munitel.cl is a real-estate site, cna.cl is an arbitration centre
-    rather than the accreditation commission, and fach.cl is the Air
-    Force. Re-adding any of them by pattern-matching on the name is an
-    easy mistake to make twice.
-    """
-    hosts = {
-        url for urls in _KNOWN_SOURCES.values() for url in urls
-    }
-    for gone in (
-        'https://www.transparencia.cl',
-        'https://www.munitel.cl',
-        'https://www.cna.cl',
-        'https://www.fach.cl',
-    ):
-        assert gone not in hosts
+    kept = _links(
+        '<a href="https://example.com/contacto?ref=nunoa.cl">x</a>'
+        '<a href="https://www.nunoa.cl/contacto">y</a>'
+    )
+    assert kept == ['https://www.nunoa.cl/contacto']
 
 
 def test_municipality_detection_still_precedes_keywords() -> None:
-    """The curated lists are only reached through entity detection."""
+    """
+    Entity type still decides which scoring table and queries are used.
+
+    It stopped selecting a curated source list when that stage was removed
+    (ADR-0013), but the link scoring and the DuckDuckGo queries both still
+    read it, so a domain landing in the wrong type is still a real
+    misdetection.
+    """
     assert detect_entity_type('nunoa.cl') is EntityType.MUNICIPALITY
     assert detect_entity_type('minsal.cl') is EntityType.GOVERNMENT
     assert detect_entity_type('usach.cl') is EntityType.UNIVERSITY
     # The Biblioteca del Congreso Nacional is a government body. It read as
-    # a company until 'bcn' was added to the keyword table, which meant a
-    # scan of it got the company sources rather than the government ones.
+    # a company until 'bcn' was added to the keyword table.
     assert detect_entity_type('bcn.cl') is EntityType.GOVERNMENT
 
 
 # ── Live checks, skipped offline
-
-def _visible_text(markup: str) -> str:
-    """
-    Reduce a page to the text a reader would see, lowercased.
-
-    Scripts and styles go first, because an analytics snippet or a CSS
-    rule can carry a word the page itself no longer says. Entities are
-    unescaped so a phrase can be written with its accents rather than as
-    `informaci&oacute;n`.
-    """
-    stripped = re.sub(
-        r'<script.*?</script>|<style.*?</style>', '', markup,
-        flags=re.S | re.I,
-    )
-    text = html.unescape(re.sub(r'<[^>]+>', ' ', stripped))
-    return re.sub(r'\s+', ' ', text).lower()
-
-
-@pytest.mark.smtp
-def test_curated_sources_are_still_themselves() -> None:
-    """
-    Every curated source still answers, and still says who it is.
-
-    Reachability alone is not enough and this is not hypothetical:
-    munitel.cl kept answering 200 for however long it took to become a
-    real-estate portal, and a status-code check would have passed it every
-    day. So each source declares a phrase that names the institution, and
-    the phrase has to still be on the page.
-
-    The two failures are reported separately because they need different
-    responses. UNREACHABLE may be the network, and is retried once, since
-    subdere.gov.cl threw a transient RemoteProtocolError while this was
-    being written and answered on the next call. DRIFTED is never
-    transient: the page loaded and is no longer the thing it was, so go
-    read it before touching the URL.
-    """
-    async def _fetch(client, url: str):
-        resp = await client.get(url, timeout=20.0)
-        if resp.status_code >= 400:
-            raise RuntimeError(f"HTTP {resp.status_code}")
-        return resp.text
-
-    async def _check() -> list[str]:
-        problems: list[str] = []
-        sources = {
-            url: phrase
-            for mapping in _KNOWN_SOURCES.values()
-            for url, phrase in mapping.items()
-        }
-        async with httpx.AsyncClient(
-            follow_redirects=True,
-            headers={"User-Agent": seed_discoverer._USER_AGENT},
-        ) as client:
-            for url, phrase in sorted(sources.items()):
-                try:
-                    markup = await _fetch(client, url)
-                except Exception:
-                    try:
-                        markup = await _fetch(client, url)
-                    except Exception as exc:
-                        problems.append(
-                            f"UNREACHABLE {url}: {type(exc).__name__}: {exc}"
-                        )
-                        continue
-
-                if phrase not in _visible_text(markup):
-                    problems.append(
-                        f"DRIFTED {url}: the page no longer says "
-                        f"{phrase!r}. Read it before editing the URL - it "
-                        f"may have become a different organisation."
-                    )
-        return problems
-
-    problems = asyncio.run(_check())
-    # Spelled out rather than left to `== []`, because the whole value of
-    # this check is the sentence naming which source went wrong and how.
-    assert not problems, "\n" + "\n".join(problems)
-
 
 @pytest.mark.smtp
 def test_certspotter_still_returns_the_documented_shape() -> None:
@@ -411,7 +318,7 @@ def test_certspotter_still_returns_the_documented_shape() -> None:
     """
     async def _query():
         async with httpx.AsyncClient(
-            headers={"User-Agent": seed_discoverer._USER_AGENT},
+            headers={"User-Agent": USER_AGENT},
         ) as client:
             return await _certspotter_subdomains('nunoa.cl', client)
 

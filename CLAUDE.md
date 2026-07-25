@@ -152,24 +152,25 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
 
 - `app/core/seed_discoverer.py` — turns a bare domain (e.g. `nunoa.cl`) into 10-20 seed
   URLs via a cascading pipeline: certificate-transparency subdomains → DNS/HTTP
-  liveness check → entity-aware semantic link scoring → curated high-value Chilean
-  sources (subdere.gov.cl, portaltransparencia.cl, leylobby.gob.cl, etc.) → optional
-  DuckDuckGo search. Each stage
-  fails silently so the next still runs. Entity type (municipality/government/
-  university/company) is auto-detected and changes which link-scoring table and known
-  sources are used — municipality detection first checks the hardcoded
+  liveness check → entity-aware semantic link scoring → optional DuckDuckGo search.
+  Each stage fails silently so the next still runs. Entity type (municipality/government/
+  university/company) is auto-detected and changes which link-scoring table and which
+  DuckDuckGo queries are used — municipality detection first checks the hardcoded
   `_CL_MUNICIPALITIES` set (Lupa Municipal 2026 list) before falling back to keyword match.
   Stage 1 is itself a chain: `_ct_subdomains` tries crt.sh then CertSpotter and stops at
   the first *non-empty* result, since a source answering with no records has answered.
   Only an all-sources failure raises `CTUnavailable`, which `discover_seeds` catches
   ([ADR-0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)) — the fallback lives
-  inside stage 1 and is not a new stage. **`_KNOWN_SOURCES` rots**: four entries had
-  silently become a real-estate portal, a content blog, an arbitration centre and an
-  unreachable host, and three of them were still answering 200 while doing it. It maps
-  each URL to a phrase naming the institution, and the `smtp`-marked test in
-  `tests/test_seed_discoverer.py` fails if that phrase leaves the page
-  ([ADR-0012](docs/adr/0012-curated-sources-assert-identity.md)). Never add a source
-  without opening its page and picking a phrase that would die with a change of owner.
+  inside stage 1 and is not a new stage. **A curated-source stage was removed in v0.4.0
+  and should not be reintroduced without measuring it first**: it seeded a hardcoded list
+  of Chilean institutional sites, and its link scoring never fired because no
+  institutional homepage links to a target by URL. Crawling all twelve sources for 451
+  pages harvested 97 `.cl` addresses and none belonging to any of eight targets; on seven
+  of those eight, `max_seeds` truncation discarded its seeds entirely, and on the eighth
+  they took 60% of the crawl budget for nothing
+  ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)). "More
+  sources" is intuitive and was wrong here, so measure recovered addresses per page
+  spent before adding one.
 - `app/core/crawler.py` — async `httpx` crawler. Phase 1 restricts link-following to
   `.cl` domains; Phase 2 (optional, activated after `phase1_timeout`) follows external
   links too, but the email filter (`is_cl_domain`) always stays `.cl`-only regardless of

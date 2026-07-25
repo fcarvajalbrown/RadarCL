@@ -14,6 +14,19 @@ import httpx
 from bs4 import BeautifulSoup
 
 
+# Sent by every request RadarCL makes, crawling and seed discovery alike.
+# `portaltransparencia.cl` and `anid.cl` answer 403 to a bare tool token
+# and 200 to this one, so a stage that seeded them handed the crawler two
+# URLs it could not open. It lives here rather than in `seed_discoverer`
+# because this is the lower-level module of the two, and it is one
+# constant rather than two so the pair cannot drift (ADR-0013).
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+
+
 def is_cl_domain(url: str) -> bool:
     """Return True if the URL host ends with .cl."""
     host = urlparse(url).netloc.lower().split(':')[0]
@@ -87,7 +100,7 @@ class Crawler:
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=10.0,
-            headers={"User-Agent": "RadarCL/0.1"},
+            headers={"User-Agent": USER_AGENT},
         ) as client:
             while not queue.empty() and self._pages_crawled < self.max_pages:
                 if (
