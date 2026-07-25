@@ -65,6 +65,50 @@ _COLOUR_ALIASES = {
 }
 
 
+# Cloudflare's Scrape Shield rewrites addresses two ways: an anchor to
+# `/cdn-cgi/l/email-protection#<hex>`, and an inline
+# `<span class="__cf_email__" data-cfemail="<hex>">`. Both carry the same
+# payload.
+_CF_PAYLOAD_RE = re.compile(
+    r'(?:data-cfemail\s*=\s*["\']|/cdn-cgi/l/email-protection\#)([0-9a-fA-F]{4,})',
+)
+
+
+def find_cf_payloads(html: str) -> list[str]:
+    """Every Cloudflare-obfuscated payload in a page, as hex strings."""
+    return _CF_PAYLOAD_RE.findall(html or '')
+
+
+def decode_cf_email(payload: str) -> str | None:
+    """
+    Decode one Cloudflare payload.
+
+    Single-byte XOR whose key is the first octet of the ciphertext, so the
+    key travels with the message. Cloudflare does not present this as
+    encryption: its purpose is to be enough to defeat a script that only
+    looks for `mailto:`, which is what this extractor was.
+
+    Returns None on anything malformed, since a half-decoded address is
+    worse than none.
+
+    The payload carries the whole `mailto:` target, so it can include a
+    query string: `csdcolocolo.cl` encodes
+    `ventas@csdcolocolo.cl?subject=Asistencia...`. Split on `?` exactly as
+    the plain `mailto:` branch does, or the address arrives with a subject
+    line welded to the domain.
+    """
+    try:
+        key = int(payload[:2], 16)
+        decoded = bytes(
+            int(payload[i:i + 2], 16) ^ key
+            for i in range(2, len(payload) - 1, 2)
+        ).decode('utf-8')
+    except (ValueError, UnicodeDecodeError):
+        return None
+    decoded = decoded.split('?')[0].strip()
+    return decoded if '@' in decoded else None
+
+
 def _same_colour_as_background(style: str) -> bool:
     """True if an element paints its text the same shade as its background."""
     colour = _COLOUR_RE.search(style)
@@ -114,6 +158,21 @@ def _addresses_in(soup: BeautifulSoup | Tag) -> set[str]:
             addr = href[7:].split('?')[0].strip().lower()
             if _EMAIL_RE.match(addr):
                 found.add(addr)
+        elif 'email-protection#' in href.lower():
+            # Cloudflare rewrote a mailto into a link to its own decoder.
+            decoded = decode_cf_email(href.split('#', 1)[1])
+            if decoded and _EMAIL_RE.match(decoded.lower()):
+                found.add(decoded.lower())
+
+    # The inline form: a span whose text Cloudflare's own script replaces in
+    # the browser. Read off the attribute, so no script has to run.
+    cf_spans = list(soup.find_all(attrs={'data-cfemail': True}))
+    if isinstance(soup, Tag) and soup.has_attr('data-cfemail'):
+        cf_spans.append(soup)
+    for tag in cf_spans:
+        decoded = decode_cf_email(str(tag['data-cfemail']))
+        if decoded and _EMAIL_RE.match(decoded.lower()):
+            found.add(decoded.lower())
 
     text = soup.get_text(separator=' ')
     for match in _EMAIL_RE.finditer(text):

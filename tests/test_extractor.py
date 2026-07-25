@@ -150,3 +150,77 @@ def test_hidden_addresses_are_still_returned() -> None:
 
     assert [r['email'] for r in results] == ['trap@nunoa.cl']
     assert results[0]['hidden'] is True
+
+
+# ── Cloudflare obfuscation
+
+def _cf_encode(address: str, key: int = 0xa5) -> str:
+    """
+    Encode an address the way Cloudflare's Scrape Shield does.
+
+    Single-byte XOR with the key stored as the first octet. Written out
+    here rather than captured from a live page so the tests stay offline
+    and the fixture cannot rot.
+    """
+    return format(key, '02x') + ''.join(
+        format(ord(c) ^ key, '02x') for c in address
+    )
+
+
+def test_decodes_cloudflare_anchor() -> None:
+    """The `/cdn-cgi/l/email-protection#` form a rewritten mailto becomes."""
+    html = (f'<a href="/cdn-cgi/l/email-protection#'
+            f'{_cf_encode("alcaldia@hualane.cl")}">correo</a>')
+    results = extract_emails(html, 'u')
+
+    assert [r['email'] for r in results] == ['alcaldia@hualane.cl']
+
+
+def test_decodes_cloudflare_inline_span() -> None:
+    """The inline form, read off the attribute so no script has to run."""
+    html = (f'<span class="__cf_email__" '
+            f'data-cfemail="{_cf_encode("partes@tome.cl")}"></span>')
+    results = extract_emails(html, 'u')
+
+    assert [r['email'] for r in results] == ['partes@tome.cl']
+
+
+def test_cloudflare_payload_query_string_is_stripped() -> None:
+    """
+    The payload holds the whole mailto target, query string included.
+
+    Measured on `csdcolocolo.cl`, which encodes
+    `ventas@...?subject=Asistencia...`. Without the split the address
+    arrives with a subject line welded to the domain, and a test using a
+    clean address would never have caught it.
+    """
+    encoded = _cf_encode('ventas@csdcolocolo.cl?subject=Asistencia%20tienda')
+    html = f'<a href="/cdn-cgi/l/email-protection#{encoded}">v</a>'
+    results = extract_emails(html, 'u')
+
+    assert [r['email'] for r in results] == ['ventas@csdcolocolo.cl']
+
+
+def test_malformed_cloudflare_payload_is_ignored() -> None:
+    """A half-decoded address is worse than none."""
+    for payload in ('zz', 'a5', '', 'a5ff'):
+        html = f'<span data-cfemail="{payload}"></span>'
+        assert extract_emails(html, 'u') == []
+
+
+def test_obfuscated_address_in_hidden_markup_is_still_a_trap() -> None:
+    """Decoding does not launder a trap: the two rules compose."""
+    html = (f'<div style="display:none">'
+            f'<span data-cfemail="{_cf_encode("trampa@nunoa.cl")}"></span>'
+            f'</div>')
+    results = extract_emails(html, 'u')
+
+    assert results[0]['email'] == 'trampa@nunoa.cl'
+    assert results[0]['hidden'] is True
+
+
+def test_non_cl_obfuscated_address_is_still_out_of_scope() -> None:
+    """Decoding widens how addresses are read, never which ones count."""
+    html = f'<span data-cfemail="{_cf_encode("someone@example.com")}"></span>'
+
+    assert extract_emails(html, 'u') == []

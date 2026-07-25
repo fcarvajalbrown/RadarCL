@@ -76,5 +76,89 @@ difference is stated in the results rather than blurred.
 
 ---
 
-*Results are appended below this line once the run completes. Nothing above
-it is edited afterwards.*
+*Everything above was committed in `9b405b4` before the first page was
+fetched. Below is the run.*
+
+# Results, 2026-07-25
+
+| | |
+|---|---|
+| Domains drawn | 100 |
+| Reachable | 77 |
+| Unreachable | 23 — 17 `ConnectError`, 4 `ConnectTimeout`, 2 × HTTP 403 |
+| **Using Cloudflare obfuscation** | **10 of 77 = 13.0%, 95% Wilson [7.2%, 22.3%]** |
+| **Yielding an address the extractor misses** | **9 of 77 = 11.7%, [6.3%, 20.7%]** |
+| Addresses recovered, homepages only | 9 |
+
+One in eight reachable Chilean institutional homepages hides at least one
+address behind this, and almost all of those hide an address that is
+nowhere else on the page.
+
+## It pays off where the tool is aimed
+
+| Detected entity | Using it |
+|---|---|
+| **Municipality** | **6 of 16 = 37.5%, [18.5%, 61.4%]** |
+| Company | 4 of 59 = 6.8%, [2.7%, 16.2%] |
+| Government | 0 of 1 |
+| University | 0 of 1 |
+
+**Municipalities use it five times as often as companies.** They are also
+RadarCL's primary target: `seed_discoverer` carries a hardcoded
+`_CL_MUNICIPALITIES` set, `scripts/muni_rm_scan.py` exists to sweep all 52
+comunas of the Región Metropolitana, and [PRD.md](../PRD.md) names municipal
+directory conventions as a reason the tool is Chile-specific at all.
+
+The two intervals overlap, so on n=77 this is a strong indication rather
+than a settled ratio. The point estimate is what it is, and the direction
+matters more than the exact multiple.
+
+What was recovered is exactly the kind of address the tool exists to find:
+
+```
+alcaldia@hualane.cl              contacto@requinoa.cl
+partes@tome.cl                   contacto@sanbernardo.cl
+municipalidadmariaelena@imme.cl  comunicaciones@salesianoconcepcion.cl
+achs@achs.cl                     mackay_informaciones@mackay.cl
+```
+
+## A parsing defect the measurement caught
+
+`csdcolocolo.cl` decoded to:
+
+```
+ventas@csdcolocolo.cl?subject=Asistencia%20tienda%20-%20csdcolocolo.cl
+```
+
+The obfuscated payload holds the whole `mailto:` target, query string
+included, so a decoder that returns the raw string produces an address with
+`?subject=...` welded on. The existing `mailto:` branch already splits on
+`?`; the decoded branch has to do the same.
+
+This is the practical argument for measuring before wiring: the unit test
+would have used a clean address and passed.
+
+## Limits
+
+- **Homepages only.** This measures whether a site uses the feature, not how
+  many addresses sit behind it across a whole site. A real crawl visits
+  dozens of pages per domain, so the addresses recovered per scan should be
+  higher than the nine here. Not measured.
+- **23% unreachable**, and not at random: 403s and connection refusals skew
+  toward sites that dislike crawlers, which are plausibly the same sites more
+  likely to deploy anti-harvesting measures. If anything this understates
+  prevalence.
+- **One date, one network**, and Cloudflare adoption moves.
+- The entity split rests on `detect_entity_type`, which
+  [ADR-0020](../adr/0020-a-convenience-sample-overstated-a-source-400-times.md)
+  records misclassifying a football club as a university. Here it had 16
+  municipalities to work with and the domains are recognisably municipal
+  (`hualane.cl`, `requinoa.cl`, `tome.cl`, `sanbernardo.cl`), so the
+  municipal bucket is trustworthy even though the classifier is not in
+  general.
+
+## Verdict
+
+No threshold was pre-registered and none is applied. At 13% of reachable
+sites and 37.5% of municipalities, the parser is plainly worth the regex it
+costs, and it is built.
