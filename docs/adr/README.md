@@ -21,3 +21,4 @@
 | [0017](0017-a-reply-is-evidence-only-about-its-subject.md) | A reply is evidence only about its subject | Accepted |
 | [0018](0018-generation-stays-in-cl-and-a-guess-says-so.md) | Generation stays in `.cl`, and a guess says so | Accepted |
 | [0019](0019-the-sibling-cl-hint-is-measured-and-declined.md) | The sibling `.cl` hint is measured and declined | Accepted |
+| [0020](0020-a-convenience-sample-overstated-a-source-400-times.md) | A convenience sample overstated a source 400 times | Accepted |

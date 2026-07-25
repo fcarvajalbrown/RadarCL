@@ -258,21 +258,28 @@ it. Evidence and sample limits are in
       HTML, the split ADR-0010 already drew
       ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)).
 
-### v0.60 — Reaching the right domain
-**Status:** In Progress — item 1 resolved (declined on measurement,
-[ADR-0019](docs/adr/0019-the-sibling-cl-hint-is-measured-and-declined.md)),
-item 2 not started. The version is not shippable and no `0.6.0` tag exists;
+### v0.60 — What the measurements changed
+**Status:** In Progress — both original items measured and declined
+([ADR-0019](docs/adr/0019-the-sibling-cl-hint-is-measured-and-declined.md),
+[ADR-0020](docs/adr/0020-a-convenience-sample-overstated-a-source-400-times.md)).
+Item 3 is what the version actually ships. No `0.6.0` tag exists and
 `app/__init__.py` is still `0.5.5`.
 
-Two items about finding the target rather than crawling it. The first is
-measured and comes first for that reason; the second is not measured at
-all, and [ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)
-is what happens when an obvious-sounding source ships unmeasured.
+**This section used to be called "Reaching the right domain".** It was
+renamed once both of its targeting items were declined: a title should
+describe what a version did, not the theme it set out with and abandoned.
 
-The first has now been measured and declined. That is the second time a
+Two items about finding the target rather than crawling it. Neither
+survived. Both were the obvious next thing, both had a pilot behind them
+that looked strong, and both fell apart the moment the sample was drawn at
+random instead of by hand — the sibling hint by a factor of two, the PGP
+source by a factor of four hundred. That is the third and fourth time a
 v0.x item has died on its own measurement rather than on an argument, after
-the curated-source stage in v0.40, and both times the intuition was that the
-feature was obviously worth having.
+the curated-source stage in v0.40 and the `.com` filter in v0.50.
+
+The version therefore ships a third item that came out of researching the
+first two: a defect in what the extractor collects, found while reading how
+commercial email-finders work.
 
 - [x] **Sibling `.cl` mail-domain hint — measured, and it does not ship.**
       The item asked that a non-`.cl` target trigger a check of whether
@@ -313,13 +320,60 @@ feature was obviously worth having.
       the suspicious ones. The on-point figure is that **116 of 257
       brand-related ccTLD domains, 45%, were suspicious** — which makes the
       ownership caveat better than the number being quoted did.
-- [ ] **PGP keyserver lookup** as a new email source in
-      `seed_discoverer.py` — direct theHarvester parity, plausible fit for
-      `.cl` government and institutional contacts who publish keys.
-- [ ] Measure recovered addresses per page spent before building the PGP
-      source. This was v0.45 until v0.50 shipped, which left an unstarted
-      version sitting behind a released one; renumbered rather than left
-      as a gap.
+- [x] **PGP keyserver lookup — measured, and it does not ship.** The item
+      required its own measurement before being built, and got one: 100
+      `.cl` domains drawn at random from the same Wikidata frame, 200
+      requests. **Seven domains in a hundred have any key at all**, and the
+      whole sample yields 16 addresses: **0.08 live per request against a
+      gate of 0.65** committed before the run, the crawler's own best page
+      from ADR-0014. Missed eightfold.
+
+      **The gap that matters is not the miss.** A pilot over eight
+      recognisable targets — ADR-0013's list, two of them universities —
+      gave 253 addresses from 8 requests, about **32 per request**. The
+      random draw gave 0.08. Picking targets you can name overstated a
+      source **four hundred times**, in the same version where hand-picked
+      pilots had already overstated the sibling hint. See
+      [ADR-0020](docs/adr/0020-a-convenience-sample-overstated-a-source-400-times.md).
+
+      `keys.openpgp.org` refuses domain enumeration by policy, not by
+      breakage, since the 2019 poisoning attacks; only the legacy SKS
+      servers answer, and any UID on them is an unverified claim by whoever
+      uploaded it. `pgp.mit.edu` failed 11 of 100 requests.
+
+      **A defect found on the way:** `detect_entity_type` classified a
+      publisher, a football club and the schools regulator as universities,
+      by substring-matching `usach`, `uc` and `educ`. So no real university
+      was drawn and the higher-education case stays untested. Recorded in
+      [docs/research/pgp-keyserver-yield.md](docs/research/pgp-keyserver-yield.md);
+      not fixed here, because it changes which seeds every scan produces.
+
+- [ ] **Stop harvesting spam traps.** `extract_emails` reads text and
+      `mailto:` links out of elements hidden by CSS, so a honeypot planted
+      in a `display:none` div, white-on-white text or a `font-size:0` link
+      is collected and lands in the CSV — the file
+      [ADR-0010](docs/adr/0010-export-contents-differ-by-format.md) defines
+      as the mailable deliverable. Checked against crafted markup: **five of
+      six honeypot-style addresses were extracted.** Those addresses have
+      never belonged to a person and exist to catch harvesters; mailing one
+      is grounds for Spamhaus listing, which poisons the sender's whole
+      domain.
+
+      Needs a measurement of how often `.cl` sites plant them, and an ADR,
+      before it ships. The gate is a different kind from items 1 and 2:
+      those asked whether a source was worth its request, and a low number
+      killed them. This asks how often the current code poisons the mailable
+      list, where any non-zero rate is a defect — so the measurement sizes
+      the harm rather than deciding whether to fix it.
+
+- [ ] **Decode Cloudflare-obfuscated addresses.** Cloudflare replaces
+      `mailto:` with `/cdn-cgi/l/email-protection#<hex>`, a single-byte XOR
+      whose key is the first octet of the ciphertext. Its own literature
+      calls it "enough to throw off the basic scripts that hunt for
+      `mailto:` links", and RadarCL is such a script. The extractor already
+      de-obfuscates the `user [at] domain.cl` style; this is the same job
+      against the form actually in use. Prevalence on `.cl` sites is
+      measured first, with a normal gate.
 
 ### v0.65 — Distributed crawling, part 1: job distribution
 **Status:** Not Started
@@ -329,11 +383,58 @@ feature was obviously worth having.
 - [ ] New ADR revisiting [ADR-0005](docs/adr/0005-hardware-aware-auto-tuning.md)'s
       hardware-tiering assumptions under a multi-worker model.
 
+### v0.70 — Infer the pattern instead of asking for it
+**Status:** Not Started
+
+Every commercial email-finder derives a domain's dominant address format
+from the addresses it has already seen, and then generates from it. The
+industry phrasing is that you do not need to find four hundred addresses,
+you need to find one and infer the rest. RadarCL instead requires the user
+to hand-write `--pattern "{first}.{last}"`, which is a guess the tool is
+better placed to make than they are.
+
+- [ ] Derive the dominant pattern from addresses already scraped off the
+      target domain, and use it where the user supplied none. No new source
+      and no new request: the evidence is already in hand by the time
+      `pattern_generator` runs.
+- [ ] Measure it the way the v0.60 items were measured — on domains that
+      yielded two or more addresses, hold one out and ask whether the
+      pattern inferred from the rest predicts it.
+- [ ] Chilean name order and compound surnames are where a naive inference
+      breaks, and `pattern_generator` already carries a first-name set to
+      resolve word order. The measurement has to report accuracy on
+      two-surname names separately, or it will flatter itself.
+- [ ] A generated address stays marked `generated` in the exports
+      ([ADR-0018](docs/adr/0018-generation-stays-in-cl-and-a-guess-says-so.md)),
+      and an inferred pattern makes that marker more important, not less.
+
 ### v0.75 — Distributed crawling, part 2: proxy rotation
 **Status:** Not Started
 - [ ] Proxy rotation with session-to-proxy binding — the actual
       IP-block-bypass mechanism (2026 state of the art per Crawlee's model),
       layered on top of the v0.65 job-distribution work.
+
+### v0.80 — Documents, not just pages
+**Status:** Not Started
+
+The crawler fetches HTML and nothing else. Hunter crawls public PDFs as a
+matter of course, and `metagoofil` — by theHarvester's own author — exists
+solely to pull documents off a domain and read addresses out of their text
+and metadata. Chilean municipal and government sites publish actas,
+decretos, oficios and licitaciones in volume, and those documents carry
+contact addresses that never appear in a page.
+
+- [ ] Fetch and parse `.pdf` and Office documents found during the crawl,
+      extracting addresses from both body text and document metadata.
+- [ ] Measure recovered addresses **per document fetched**, against the
+      crawler's own addresses per page. A document is heavier than a page,
+      so it has to earn more, and the gate should say so before the run.
+- [ ] Size limits and a content-type check come first. An unbounded fetch of
+      whatever a server calls a PDF is how a crawl on the low-spec hardware
+      [ADR-0005](docs/adr/0005-hardware-aware-auto-tuning.md) targets stops
+      being polite to anyone.
+- [ ] New dependency, so [ADR-0008](docs/adr/0008-vendored-core-dependencies.md)
+      applies: vendored, hash-pinned, two-step bump.
 
 ### v0.90 — Hardening pass
 **Status:** Not Started
