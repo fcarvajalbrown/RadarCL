@@ -8,7 +8,12 @@ Stages (run in order):
                (ADR-0009)
   3. SMTP    — handshake without sending email; 250 valid,
                5xx invalid, 4xx/252 unknown (ADR-0007)
-  4. API     — optional third-party (placeholder)
+
+Three stages, not four. A fourth "optional third-party API" stage existed
+as a placeholder until v0.55 and was removed rather than built: no
+interface exposed it, nothing read its output, and the commercial APIs it
+would have called are 70-85% accurate on catch-all domains, which is the
+case this project actually needs solved (ADR-0015).
 """
 
 import re
@@ -36,7 +41,6 @@ class VerificationResult:
     syntax_ok: bool = False
     mx_ok: bool = False
     smtp_ok: Optional[bool] = None
-    api_status: Optional[str] = None
     error: str = ""
 
 
@@ -49,7 +53,6 @@ _SYNTAX_RE = re.compile(
 def verify(
     email: str,
     smtp_enabled: bool = True,
-    api_key: str | None = None,
 ) -> VerificationResult:
     """
     Run all verification stages for a single email address.
@@ -60,8 +63,6 @@ def verify(
         The address to verify.
     smtp_enabled : bool
         If False, skip the SMTP handshake stage.
-    api_key : str | None
-        Enables Stage 4 if provided.
 
     Returns
     -------
@@ -122,9 +123,5 @@ def verify(
         result.smtp_ok = None
         result.status = VStatus.UNKNOWN
         result.error = f"SMTP error: {exc}"
-
-    # Stage 4: API (placeholder)
-    if api_key and result.status == VStatus.UNKNOWN:
-        result.api_status = "not_implemented"
 
     return result

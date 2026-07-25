@@ -237,8 +237,11 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   The DoH leg exists because dnspython uses UDP/53, which some networks
   filter while leaving HTTPS working.
 - `app/core/verifier.py` — sequential pipeline per email: syntax regex → DNS MX lookup →
-  raw SMTP `RCPT TO` handshake (no email actually sent) → optional API stage (currently
-  a placeholder). Returns a `VerificationResult` with a `VStatus` of VALID/UNKNOWN/INVALID;
+  raw SMTP `RCPT TO` handshake (no email actually sent). Three stages, not four: a
+  fourth third-party API stage was a placeholder no interface exposed and was removed
+  rather than built, since the commercial APIs are 70-85% accurate on catch-all domains
+  ([ADR-0015](docs/adr/0015-no-third-party-verification-api.md)).
+  Returns a `VerificationResult` with a `VStatus` of VALID/UNKNOWN/INVALID;
   SMTP failures/timeouts land in UNKNOWN rather than INVALID since many servers block
   verification probes.
 - `app/core/hw_profile.py` — detects RAM/CPU at startup and picks a `low`/`medium`/`high`

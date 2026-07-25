@@ -16,3 +16,4 @@
 | [0012](0012-curated-sources-assert-identity.md) | Curated sources assert their identity, not just their availability | Superseded by 0013 |
 | [0013](0013-curated-source-stage-removed-after-measurement.md) | The curated-source stage is removed after measuring it | Accepted |
 | [0014](0014-country-is-never-inferred-from-a-com-address.md) | Country is never inferred from a `.com` address | Accepted |
+| [0015](0015-no-third-party-verification-api.md) | No third-party verification API, and Stage 4 is removed | Accepted |

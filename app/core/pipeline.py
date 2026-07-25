@@ -162,7 +162,6 @@ def verify_all(
     emails: Sequence[tuple],
     *,
     smtp_enabled: bool = True,
-    api_key: str | None = None,
 ) -> Iterator[dict]:
     """
     Verify (email, source_url) pairs, yielding one record per address.
@@ -176,8 +175,6 @@ def verify_all(
         a file and has no page to draw evidence from.
     smtp_enabled : bool
         If False, skip the SMTP handshake stage.
-    api_key : str | None
-        Enables the verifier's Stage 4 if provided.
 
     Yields
     ------
@@ -193,7 +190,7 @@ def verify_all(
         looked, and a consumer must not read the two the same way.
     """
     for email, source, *rest in emails:
-        result = verify(email, smtp_enabled=smtp_enabled, api_key=api_key)
+        result = verify(email, smtp_enabled=smtp_enabled)
         record = {
             'email': email,
             'source': source,

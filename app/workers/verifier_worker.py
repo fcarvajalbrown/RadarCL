@@ -30,7 +30,6 @@ class VerifierWorker(QThread):
         self,
         emails: list[tuple],
         smtp_enabled: bool = True,
-        api_key: str | None = None,
     ) -> None:
         """
         Initialise the verifier worker.
@@ -45,13 +44,10 @@ class VerifierWorker(QThread):
             not displayed (ADR-0014).
         smtp_enabled : bool
             If False, skip the SMTP handshake stage.
-        api_key : str | None
-            Enables Stage 4 API verification if provided.
         """
         super().__init__()
         self._emails = emails
         self._smtp_enabled = smtp_enabled
-        self._api_key = api_key
         self._stop_flag = False
 
     def stop(self) -> None:
@@ -69,7 +65,6 @@ class VerifierWorker(QThread):
         for i, record in enumerate(verify_all(
             self._emails,
             smtp_enabled=self._smtp_enabled,
-            api_key=self._api_key,
         )):
             if self._stop_flag:
                 break

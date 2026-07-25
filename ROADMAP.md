@@ -241,10 +241,14 @@ it. Evidence and sample limits are in
 
 ### v0.55 — Verifier Stage 4 resolution
 **Status:** Not Started
-- [ ] Resolve the Stage 4 API placeholder in `app/core/verifier.py`: either
-      build a real third-party verification API integration, or close it
-      formally with an ADR stating it's not planned. Currently an
-      undecided placeholder, not a real deferred item.
+- [x] The Stage 4 API placeholder is closed and removed, not built. No
+      interface exposed it, `api_status` was read by nothing, and the early
+      return on `smtp_enabled` meant it could only fire after a completed
+      SMTP probe. Free tiers run 100 verifications a month and the paid
+      providers are 70-85% accurate on catch-all domains, which is the case
+      immediately below this one, so the integration would have cost money
+      to be unreliable exactly where it was needed
+      ([ADR-0015](docs/adr/0015-no-third-party-verification-api.md)).
 - [ ] Accept-all / catch-all domain detection: Yahoo, AOL, mail.com and
       hardened Exchange estates return `250` to every `RCPT TO` as an
       anti-harvesting measure, so a 250 is not evidence the mailbox exists
