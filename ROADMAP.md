@@ -259,7 +259,10 @@ it. Evidence and sample limits are in
       ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)).
 
 ### v0.60 — Reaching the right domain
-**Status:** Not Started
+**Status:** In Progress — item 1 resolved (declined on measurement,
+[ADR-0019](docs/adr/0019-the-sibling-cl-hint-is-measured-and-declined.md)),
+item 2 not started. The version is not shippable and no `0.6.0` tag exists;
+`app/__init__.py` is still `0.5.5`.
 
 Two items about finding the target rather than crawling it. The first is
 measured and comes first for that reason; the second is not measured at
