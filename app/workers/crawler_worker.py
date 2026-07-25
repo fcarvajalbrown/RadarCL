@@ -20,18 +20,22 @@ class CrawlerWorker(QThread):
 
     Signals
     -------
-    email_found : Signal(str, str)
-        Emitted for each discovered email: (email_address, source_url).
-    candidate_found : Signal(str, str)
-        Emitted for each pattern-generated candidate: (email, source_url).
+    email_found : Signal(str, str, object)
+        Emitted for each discovered email: (email_address, source_url,
+        evidence). Evidence is the `Discovery.evidence` tuple, carried as
+        `object` because Qt has no tuple-of-str signal type; it travels to
+        the exporters and is not displayed (ADR-0014).
+    candidate_found : Signal(str, str, object)
+        Emitted for each pattern-generated candidate: (email, source_url,
+        evidence).
     debug_message : Signal(str)
         Emitted for crawler debug messages (URLs visited, errors).
     crawl_finished : Signal()
         Emitted when the crawl completes or is stopped.
     """
 
-    email_found: Signal = Signal(str, str)
-    candidate_found: Signal = Signal(str, str)
+    email_found: Signal = Signal(str, str, object)
+    candidate_found: Signal = Signal(str, str, object)
     debug_message: Signal = Signal(str)
     page_crawled: Signal = Signal(int)
     crawl_finished: Signal = Signal()
@@ -129,6 +133,10 @@ class CrawlerWorker(QThread):
             should_stop=lambda: self._stop_flag,
         ):
             if discovery.generated:
-                self.candidate_found.emit(discovery.email, discovery.source_url)
+                self.candidate_found.emit(
+                    discovery.email, discovery.source_url, discovery.evidence
+                )
             else:
-                self.email_found.emit(discovery.email, discovery.source_url)
+                self.email_found.emit(
+                    discovery.email, discovery.source_url, discovery.evidence
+                )

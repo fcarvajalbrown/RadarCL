@@ -109,7 +109,7 @@ class ControlPanel(QWidget):
         self._crawler: CrawlerWorker | None = None
         self._verifier: VerifierWorker | None = None
         self._discovery_worker: _DiscoveryWorker | None = None
-        self._collected_emails: list[tuple[str, str]] = []
+        self._collected_emails: list[tuple[str, str, tuple[str, ...]]] = []
         self._discovered_seeds: list[str] = []
         self._session_id: int | None = None
         self._is_running: bool = False
@@ -708,15 +708,26 @@ class ControlPanel(QWidget):
 
     # ── Worker signal handlers
 
-    def _on_email_found(self, email: str, source: str) -> None:
-        """Store, persist, and forward discovered email."""
-        self._collected_emails.append((email, source))
+    def _on_email_found(
+        self, email: str, source: str, evidence: tuple[str, ...] = ()
+    ) -> None:
+        """
+        Store, persist, and forward discovered email.
+
+        Evidence is collected so the JSON and HTML exports can report it,
+        and deliberately not forwarded to the results table: it describes
+        the page, not the address, and a column would invite reading it as
+        a nationality (ADR-0014).
+        """
+        self._collected_emails.append((email, source, evidence))
         session.save_email(self._session_id, email, source)
         self.email_discovered.emit(email, source)
 
-    def _on_candidate_found(self, email: str, source: str) -> None:
+    def _on_candidate_found(
+        self, email: str, source: str, evidence: tuple[str, ...] = ()
+    ) -> None:
         """Store, persist, and forward pattern-generated candidate."""
-        self._collected_emails.append((email, source))
+        self._collected_emails.append((email, source, evidence))
         session.save_email(self._session_id, email, source)
         self.candidate_discovered.emit(email, source)
 

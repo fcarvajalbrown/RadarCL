@@ -28,7 +28,7 @@ class VerifierWorker(QThread):
 
     def __init__(
         self,
-        emails: list[tuple[str, str]],
+        emails: list[tuple],
         smtp_enabled: bool = True,
         api_key: str | None = None,
     ) -> None:
@@ -37,8 +37,12 @@ class VerifierWorker(QThread):
 
         Parameters
         ----------
-        emails : list[tuple[str, str]]
-            List of (email_address, source_url) pairs to verify.
+        emails : list[tuple]
+            (email_address, source_url) pairs, or
+            (email_address, source_url, evidence) triples. Both shapes
+            are passed straight to `pipeline.verify_all`, which accepts
+            either; evidence reaches the JSON and HTML exports and is
+            not displayed (ADR-0014).
         smtp_enabled : bool
             If False, skip the SMTP handshake stage.
         api_key : str | None
