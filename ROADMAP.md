@@ -200,12 +200,6 @@ for the drift-detection measurements it records),
 measurement, and why a stage that cannot be shown to contribute is removed
 rather than maintained).
 
-### v0.45 — PGP keyserver source
-**Status:** Not Started
-- [ ] Add PGP keyserver lookup as a new email source in `seed_discoverer.py`
-      — direct theHarvester parity, plausible fit for `.cl`
-      government/institutional contacts who publish PGP keys.
-
 ### v0.50 — page evidence, and the `.com` question closed
 **Status:** Done
 - [x] The filter change this item asked for does not ship, and the
@@ -258,6 +252,18 @@ it. Evidence and sample limits are in
       a random address at the same domain, a fourth status bucket, and its
       own ADR. Surfaced by the research behind
       [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md).
+
+### v0.60 — PGP keyserver source
+**Status:** Not Started
+- [ ] Add PGP keyserver lookup as a new email source in `seed_discoverer.py`
+      — direct theHarvester parity, plausible fit for `.cl`
+      government/institutional contacts who publish PGP keys.
+- [ ] Measure recovered addresses per page spent before building it. This
+      was v0.45 until v0.50 shipped, which left an unstarted version
+      sitting behind a released one; renumbered rather than left as a gap.
+      The v0.40 precedent applies directly: a new source that sounded
+      obvious returned zero addresses for any target
+      ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)).
 
 ### v0.65 — Distributed crawling, part 1: job distribution
 **Status:** Not Started
