@@ -10,16 +10,28 @@ release correspondiente. Cómo se escribe una entrada nueva está en
 
 ## [0.4.0] - 2026-07-24
 
-De las ocho fuentes chilenas que RadarCL tenía escritas a mano, cuatro
-habían dejado de ser lo que decían. munitel.cl vende departamentos.
-transparencia.cl es un blog. cna.cl es un centro de arbitrajes y no la
-comisión de acreditación, y fach.cl, que además es la Fuerza Aérea, ni
-siquiera responde. Tres de ellas seguían
-respondiendo 200 mientras tanto, así que revisar si la página carga no
-habría servido de nada. Ahora cada fuente declara una frase que su página
-tiene que seguir diciendo, y una prueba las va a buscar una por una.
-crt.sh, de paso, estuvo caído unos quince minutos mientras se escribía
-esta versión, y por fin tiene reemplazo.
+RadarCL tenía ocho fuentes chilenas escritas a mano y cuatro habían
+dejado de ser lo que decían: munitel.cl vende departamentos. Se repararon
+una por una, se les puso una prueba que verifica que cada página siga
+nombrando a su institución, y recién ahí se midió qué devolvían de
+verdad: 451 páginas rastreadas, 97 correos encontrados, ninguno del
+dominio que se estaba buscando. También entró CertSpotter como respaldo,
+porque crt.sh estuvo caído unos quince minutos justo mientras se escribía
+esta versión. La lista curada no sobrevivió a su propia medición.
+
+### Eliminado
+- La etapa de fuentes chilenas curadas, completa. Sembraba sitios
+  institucionales (subdere.gov.cl, portaltransparencia.cl y otros) en
+  cada escaneo, y su puntuación de enlaces nunca llegó a activarse:
+  ninguna portada institucional enlaza por URL al dominio que uno busca.
+  Rastrear cada fuente por separado dio 97 correos `.cl` y ninguno del
+  dominio objetivo. En siete de ocho dominios de prueba las semillas ni
+  siquiera pasaban el corte de `max_seeds`, y en el octavo se llevaron el
+  60% del presupuesto de páginas sin devolver nada
+  ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)).
+- `transparencia.cl`, `munitel.cl`, `cna.cl` y `fach.cl`, que ya estaban
+  equivocadas antes de todo esto. Tres seguían respondiendo 200 mientras
+  tanto, así que revisar si la página carga no habría servido de nada.
 
 ### Añadido
 - CertSpotter como respaldo de crt.sh dentro de la primera etapa del
@@ -31,26 +43,6 @@ esta versión, y por fin tiene reemplazo.
   de fallar; solo cuando todas fallan hay error, la misma distinción que
   [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md) hizo para
   el DNS.
-- `leylobby.gob.cl` entre las fuentes de gobierno. La Ley del Lobby obliga
-  a publicar a los sujetos pasivos con nombre e institución, que es lo
-  más cercano que hay en Chile a un directorio público de funcionarios.
-- `sinim.gov.cl` y `portaltransparencia.cl` para municipios,
-  `consejoderectores.cl` y `anid.cl` para universidades,
-  `chilecompra.cl`, `sofofa.cl` y `ccs.cl` para empresas.
-- Cada fuente curada declara una frase que nombra a la institución, y una
-  prueba marcada `smtp` descarga la página y falla si la frase ya no está.
-  Corrida contra la lista anterior a esta versión, marcó `munitel.cl` y
-  `cna.cl` como cambiadas y `fach.cl` como inalcanzable
-  ([ADR-0012](docs/adr/0012-curated-sources-assert-identity.md)).
-- Las dos formas de fallar se informan por separado, porque piden cosas
-  distintas: una fuente inalcanzable se reintenta una vez, una que cambió
-  de contenido no. El marcador `smtp` significa "necesita internet", así
-  que `pytest -m "not smtp"` sigue corriendo sin red.
-
-### Eliminado
-- `transparencia.cl`, `munitel.cl`, `cna.cl` y `fach.cl`. Mandar el
-  rastreador a un portal inmobiliario es peor que no mandarlo a ninguna
-  parte.
 
 ### Cambiado
 - El tiempo de espera de crt.sh baja de 30 a 20 segundos. Una consulta
@@ -59,17 +51,24 @@ esta versión, y por fin tiene reemplazo.
   y le pasan el resto a CertSpotter, que contesta en 0,6. El costo está
   dicho sin adornos en el ADR: en un dominio frío se cambian los trece
   nombres de crt.sh por los cuatro de CertSpotter.
-- El descubridor de semillas se identifica con un User-Agent de
-  navegador. `portaltransparencia.cl` y `anid.cl` respondían 403 al
-  anterior.
+- El rastreador y el descubridor de semillas mandan el mismo User-Agent
+  de navegador. `portaltransparencia.cl` y `anid.cl` respondían 403 al
+  anterior, así que el rastreador bajaba cero páginas de esos dos sitios.
+- Al puntuar enlaces ahora solo cuentan los que llevan el dominio en el
+  host. Antes bastaba con que apareciera en cualquier parte de la
+  dirección, así que un enlace a otro sitio con `?ref=nunoa.cl` pasaba
+  por interno.
 - MerkleMap quedó descartado y está anotado como tal para que nadie lo
   reintente: responde 401 sin clave y su único plan cuesta 49 euros al
   mes, sin capa gratuita de API.
 
 ### Corregido
-- Un rastreo de `bcn.cl` recibía las fuentes de empresas. La Biblioteca
-  del Congreso Nacional es un organismo de gobierno y faltaba en la tabla
-  de palabras clave.
+- La Biblioteca del Congreso Nacional se clasificaba como empresa.
+  Faltaba `bcn` en la tabla de palabras clave, que es la que decide qué
+  puntuación de enlaces y qué consultas de búsqueda se usan.
+- `scripts/release_notes.py` escribía en la codificación local de Windows
+  al redirigir su salida, así que las notas de una versión salían con los
+  acentos rotos. Ahora escribe UTF-8.
 - `PRD.md` se movió a `docs/` y dejó enlaces rotos en `ROADMAP.md`,
   `CONTRIBUTING.md` y en el propio documento.
 

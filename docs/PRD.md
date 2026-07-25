@@ -57,16 +57,19 @@ internal use.
   and testing the GUI on other platforms.
 - **Not trying to out-source-count Subfinder/Amass.** Those tools run
   dozens of generic global passive sources; RadarCL's actual differentiator
-  is Chile-specific source curation and entity-aware scoring
-  (`seed_discoverer.py`'s municipality/government/university/company
-  detection), not raw source volume.
+  is entity-aware seed discovery — `seed_discoverer.py` detects
+  municipality/government/university/company and changes its link-scoring
+  table and its search queries accordingly — not raw source volume. A
+  curated list of Chilean institutional sources was the other half of this
+  claim until v0.4.0, when measuring it returned no addresses and it was
+  removed ([ADR-0013](adr/0013-curated-source-stage-removed-after-measurement.md)).
 
 ## Competitive positioning
 
 - **Subfinder** (subdomain enumeration, 46+ generic passive sources):
   RadarCL doesn't compete on source count. It competes on doing one
-  narrow thing — Chilean email discovery — with domain-specific curation
-  and scoring no generic tool does.
+  narrow thing — Chilean email discovery — with entity-aware scoring no
+  generic tool does.
 - **theHarvester** (broad-scope email/subdomain harvesting, 54+ sources
   including PGP keyservers, multi-format output): the closest OSS analog
   in *purpose*, broader in *scope*. RadarCL's edge is depth on one country
