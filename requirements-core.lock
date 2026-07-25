@@ -30,9 +30,13 @@ idna==3.18 \
 lxml==6.1.1 \
     --hash=sha256:b2d444f2e66624d68e9c6b211e28a76e22fff5fcabcfff4deac18b529b7d4137 \
     --hash=sha256:ba96ae44888e0185281e937633a743ea90d5a196c6000f82565ebb0580012d40
+phonenumbers==9.0.34 \
+    --hash=sha256:1221bf8e65bd2c02770226488af806d4636814bc997104d3a1f7de6ed6410bd2
 psutil==7.2.2 \
     --hash=sha256:0746f5f8d406af344fd547f1c8daa5f5c33dbc293bb8d6a16d80b4bb88f59372 \
     --hash=sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988
+python_stdnum==2.2 \
+    --hash=sha256:bdf98fd117a0ca152e4047aa8ad254bae63853d4e915ddd4e0effb33ba0e9260
 soupsieve==2.9.1 \
     --hash=sha256:4f4477399246b7a0c720a88ca2454b11cd6bb9ae4c9d170140786e916776c14c
 typing_extensions==4.16.0 \

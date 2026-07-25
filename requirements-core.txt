@@ -8,3 +8,8 @@ beautifulsoup4>=4.12.0
 lxml>=5.2.0
 dnspython>=2.6.0
 psutil>=5.9.0
+# Chilean-page evidence signals (ADR-0014). stdnum.cl.rut is the canonical
+# RUT validator; phonenumbers carries Google's CL number-plan metadata,
+# which is what matches numbers written without a +56 prefix.
+python-stdnum>=1.19
+phonenumbers>=8.13.0
