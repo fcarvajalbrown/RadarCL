@@ -348,3 +348,115 @@ def test_probe_failure_does_not_invent_a_catch_all(monkeypatch) -> None:
     _patch(monkeypatch, accepts)
 
     assert verifier.verify('alguien@nunoa.cl').status is verifier.VStatus.VALID
+
+
+# ── 5xx is not automatically about the mailbox (RFC 3463 subclasses)
+
+class _MsgSMTP(_ProbeSMTP):
+    """Fake whose RCPT reply carries a real enhanced-status message."""
+
+    def rcpt(self, addr):
+        self.rcpts.append(addr)
+        return self.accepts(addr)          # returns (code, msg)
+
+
+def _patch_msg(monkeypatch, reply):
+    holder = {}
+
+    def _factory(timeout=None):
+        holder['smtp'] = _MsgSMTP(lambda a: reply, timeout)
+        return holder['smtp']
+
+    monkeypatch.setattr(verifier.smtplib, 'SMTP', _factory)
+    monkeypatch.setattr(verifier, 'resolve_mx', lambda d: 'mx.example.cl')
+    return holder
+
+
+def test_550_5_1_1_is_invalid(monkeypatch) -> None:
+    """Bad destination mailbox: the address really is dead."""
+    _patch_msg(monkeypatch, (550, b'5.1.1 User unknown'))
+    assert verifier.verify('nadie@nunoa.cl').status is verifier.VStatus.INVALID
+
+
+def test_550_5_7_1_is_unknown_not_invalid(monkeypatch) -> None:
+    """
+    5.7.1 is "you are not allowed", a permanent fact about the sender.
+    Reporting it INVALID marks live addresses dead for everyone reading
+    the CSV, which is the ADR-0009 error one stage later.
+    """
+    _patch_msg(monkeypatch, (550, b'5.7.1 Access denied, blocked'))
+    result = verifier.verify('real@nunoa.cl')
+
+    assert result.status is verifier.VStatus.UNKNOWN
+    assert 'policy' in result.error
+
+
+def test_550_5_4_1_is_unknown(monkeypatch) -> None:
+    """5.4.x is routing: also not a statement about the mailbox."""
+    _patch_msg(monkeypatch, (550, b'5.4.1 Recipient address rejected'))
+    assert verifier.verify('a@nunoa.cl').status is verifier.VStatus.UNKNOWN
+
+
+def test_550_without_enhanced_code_stays_invalid(monkeypatch) -> None:
+    """Unchanged default: a bare 550 is still a permanent rejection."""
+    _patch_msg(monkeypatch, (550, b'No such user here'))
+    assert verifier.verify('a@nunoa.cl').status is verifier.VStatus.INVALID
+
+
+def test_greylisting_is_flagged_for_retry(monkeypatch) -> None:
+    """A greylisted address is live; it just answered later."""
+    _patch_msg(monkeypatch, (451, b'4.7.1 Greylisting in action, come back'))
+    result = verifier.verify('a@nunoa.cl')
+
+    assert result.status is verifier.VStatus.UNKNOWN
+    assert result.greylisted is True
+    assert 'retrying' in result.error
+
+
+def test_421_is_not_treated_as_greylisting(monkeypatch) -> None:
+    """
+    421 is load shedding or rate limiting. Retrying it promptly is how a
+    temporary deferral becomes a block.
+    """
+    _patch_msg(monkeypatch, (421, b'4.7.0 Too many concurrent connections'))
+    result = verifier.verify('a@nunoa.cl')
+
+    assert result.status is verifier.VStatus.UNKNOWN
+    assert result.greylisted is False
+
+
+def test_probe_identity_names_no_one_elses_domain(monkeypatch) -> None:
+    """
+    RadarCL used to send HELO verify.cl and MAIL FROM check@verify.cl.
+    verify.cl is registered to someone else, so every probe attributed
+    itself to a stranger. Asserted on what goes over the wire, not on the
+    source text, which still names the domain to explain the history.
+    """
+    monkeypatch.delenv('RADARCL_HELO', raising=False)
+    sent: dict[str, str] = {}
+
+    class _Recorder(_ProbeSMTP):
+        def helo(self, name):
+            sent['helo'] = name
+            return 250, b'ok'
+
+        def mail(self, sender):
+            sent['mail'] = sender
+            return 250, b'ok'
+
+    monkeypatch.setattr(
+        verifier.smtplib, 'SMTP',
+        lambda timeout=None: _Recorder(lambda a: 250, timeout)
+    )
+    monkeypatch.setattr(verifier, 'resolve_mx', lambda d: 'mx.example.cl')
+
+    verifier.verify('a@nunoa.cl')
+
+    assert 'verify.cl' not in sent['helo']
+    assert sent['mail'] == ''          # the null sender, not a borrowed one
+
+
+def test_helo_override_is_honoured(monkeypatch) -> None:
+    """Anyone with a real domain and a PTR record should use it."""
+    monkeypatch.setenv('RADARCL_HELO', 'mail.ejemplo.cl')
+    assert verifier._helo_name() == 'mail.ejemplo.cl'
