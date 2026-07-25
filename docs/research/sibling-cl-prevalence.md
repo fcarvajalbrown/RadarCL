@@ -340,6 +340,62 @@ what that ADR says.
 The DoH leg had been masking it, which is why it survived: the chain still
 resolved, one transport later and several seconds slower.
 
+## Catch-all prevalence on `.cl`, re-measured
+
+[ADR-0017](../adr/0017-a-reply-is-evidence-only-about-its-subject.md) records
+"17% of reachable ones are catch-all" from 20 domains met while testing
+something else, and that ADR defers a real measurement. This is it, on the
+same footing as the rest of this file: 60 registrable `.cl` domains drawn with
+the same seed from the same Wikidata frame — organisations with country Chile
+— with n fixed before the run.
+
+| | |
+|---|---|
+| Domains probed | 60 |
+| Catch-all | 4 |
+| Selective | 34 |
+| No answer | 21 |
+| No such domain | 1 (`miras.cl`) |
+
+**4 of 38 reachable = 10.5%, 95% Wilson [4.2%, 24.1%].**
+
+ADR-0017's 17% sits inside that interval, so the two do not disagree. The new
+number is lower, better founded and still imprecise, and the reason it is
+still imprecise is the next section.
+
+**Non-response is 35% and it is the dominant limitation.** Eleven domains
+timed out and ten dropped the connection (`SMTPServerDisconnected`). Those are
+servers refusing an unfamiliar probe rather than networks failing.
+
+**The bias runs toward understating catch-all.** ADR-0016 records that
+accept-all is deployed deliberately as an anti-harvesting measure, and the
+estates hardened enough to drop an unrecognised SMTP client are the same ones
+most likely to be running it. The 21 that would not talk are not a random
+sample of the 60.
+
+Two limits of method, stated because they change what the number means:
+
+- **The probe is not the shipped code path.** `verifier._is_catch_all` was
+  called directly over one open connection, so this measures "the server
+  accepts two invented recipients". ADR-0016 only reaches that question after
+  a *real* address returns 250. The server property is the same; the
+  population of servers reaching the test is not identical.
+- **`miras.cl` does not exist**, and the script files `DomainNotFound` and
+  `MXUnavailable` together as unreachable. It is excluded from the
+  denominator, which is right — a domain with no mail server has no
+  recipient policy — but it is not non-response and is counted separately
+  above.
+
+Three of the four catch-all domains are Google-hosted (`smtp.google.com`,
+`ASPMX.L.GOOGLE.com`, `aspmx.l.google.com`); the fourth is on
+`mail.h-email.net`. The literature ADR-0016 surveyed warned that Microsoft
+365 would always look catch-all. In this sample no Microsoft-hosted domain
+did, and every catch-all but one was a Google Workspace tenant.
+
+**No threshold was attached to this**, per the pre-registration: catch-all
+detection already ships and this sizes its effect rather than deciding
+whether it should exist.
+
 ## Incidental: who hosts Chilean mail
 
 MX provider of the 58 siblings with a real MX record:
