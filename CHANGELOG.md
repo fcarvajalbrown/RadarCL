@@ -10,28 +10,15 @@ release correspondiente. Cómo se escribe una entrada nueva está en
 
 ## [0.4.0] - 2026-07-24
 
-RadarCL tenía ocho fuentes chilenas escritas a mano y cuatro habían
-dejado de ser lo que decían: munitel.cl vende departamentos. Se repararon
-una por una, se les puso una prueba que verifica que cada página siga
-nombrando a su institución, y recién ahí se midió qué devolvían de
-verdad: 451 páginas rastreadas, 97 correos encontrados, ninguno del
-dominio que se estaba buscando. También entró CertSpotter como respaldo,
-porque crt.sh estuvo caído unos quince minutos justo mientras se escribía
-esta versión. La lista curada no sobrevivió a su propia medición.
-
-### Eliminado
-- La etapa de fuentes chilenas curadas, completa. Sembraba sitios
-  institucionales (subdere.gov.cl, portaltransparencia.cl y otros) en
-  cada escaneo, y su puntuación de enlaces nunca llegó a activarse:
-  ninguna portada institucional enlaza por URL al dominio que uno busca.
-  Rastrear cada fuente por separado dio 97 correos `.cl` y ninguno del
-  dominio objetivo. En siete de ocho dominios de prueba las semillas ni
-  siquiera pasaban el corte de `max_seeds`, y en el octavo se llevaron el
-  60% del presupuesto de páginas sin devolver nada
-  ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)).
-- `transparencia.cl`, `munitel.cl`, `cna.cl` y `fach.cl`, que ya estaban
-  equivocadas antes de todo esto. Tres seguían respondiendo 200 mientras
-  tanto, así que revisar si la página carga no habría servido de nada.
+crt.sh estuvo caído unos quince minutos justo mientras se escribía esta
+versión, y hasta ahora eso bastaba para que la primera etapa del
+descubrimiento de semillas no devolviera nada ni dijera por qué. Ahora
+tiene respaldo: CertSpotter contesta en 0,6 segundos, sin clave y sin
+registro. De paso se midió qué devolvían las ocho fuentes chilenas
+escritas a mano, y el resultado fue 451 páginas rastreadas, 97 correos
+encontrados, ninguno del dominio que se buscaba, así que esa etapa se
+eliminó completa. Los ocho dominios de prueba siguieron encontrando
+exactamente las mismas direcciones, con menos páginas gastadas.
 
 ### Añadido
 - CertSpotter como respaldo de crt.sh dentro de la primera etapa del
@@ -43,6 +30,23 @@ esta versión. La lista curada no sobrevivió a su propia medición.
   de fallar; solo cuando todas fallan hay error, la misma distinción que
   [ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md) hizo para
   el DNS.
+
+### Eliminado
+- La etapa de fuentes chilenas curadas, completa. Sembraba sitios
+  institucionales (subdere.gov.cl, portaltransparencia.cl y otros) en
+  cada escaneo, y su puntuación de enlaces nunca llegó a activarse:
+  ninguna portada institucional enlaza por URL al dominio que uno busca.
+  Rastrear cada fuente por separado dio 97 correos `.cl` y ninguno del
+  dominio objetivo. En siete de ocho dominios de prueba las semillas ni
+  siquiera pasaban el corte de `max_seeds`, y en el octavo se llevaron el
+  60% del presupuesto de páginas sin devolver nada
+  ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)).
+- Quitar esa etapa no cambió ni una dirección encontrada. Se midió con la
+  tubería completa en los ocho dominios de prueba, con y sin la etapa, y
+  las dos versiones devolvieron exactamente la misma cantidad.
+- `transparencia.cl`, `munitel.cl`, `cna.cl` y `fach.cl`, que ya estaban
+  equivocadas antes de todo esto. Tres seguían respondiendo 200 mientras
+  tanto, así que revisar si la página carga no habría servido de nada.
 
 ### Cambiado
 - El tiempo de espera de crt.sh baja de 30 a 20 segundos. Una consulta
