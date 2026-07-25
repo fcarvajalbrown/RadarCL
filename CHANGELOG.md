@@ -8,6 +8,73 @@ Cada sección de este archivo es, tal cual, el texto de las notas del
 release correspondiente. Cómo se escribe una entrada nueva está en
 [docs/release-notes.md](docs/release-notes.md).
 
+## [0.5.0] - 2026-07-24
+
+Un candidato generado para bhp.com salía en la misma lista que
+sarah.wilson@bhp.com, una dirección de Melbourne, bajo el rótulo de
+contactos chilenos. Esta versión salió a medir si la nacionalidad se puede
+deducir de una dirección .com y la respuesta fue no: el RUT, la señal que
+parecía más fuerte, no apareció en ninguna de las 200 páginas rastreadas,
+y ampliar el filtro no habría sumado ni una dirección en Codelco,
+Falabella ni Sonda. RadarCL ya no deduce el país. Anota lo que vio.
+
+### Añadido
+- Cada dirección encontrada lleva las señales chilenas de la página donde
+  apareció: `lang-es-cl`, `rut`, `phone-cl`, `lexicon` y `path-cl`. Es una
+  marca, nunca un filtro. Sobre siete empresas chilenas con dominio .com
+  la cascada se activó en cuatro, así que usarla para decidir qué se
+  recoge habría descartado en silencio direcciones reales en las otras
+  tres ([ADR-0014](docs/adr/0014-country-is-never-inferred-from-a-com-address.md)).
+- Las exportaciones JSON y HTML incluyen esas señales. El informe HTML
+  suma una columna "Evidencia" y explica, ahí mismo, que no afirma la
+  nacionalidad de la empresa: teck.com la activa porque su página de
+  contacto publica una oficina en Las Condes y un teléfono chileno real,
+  y eso es correcto. La señal habla de la página, no de quién es dueño
+  del dominio.
+- `python-stdnum` y `phonenumbers` en `vendor/`, con sus hashes
+  ([ADR-0008](docs/adr/0008-vendored-core-dependencies.md)). La segunda
+  trae el plan de numeración chileno, que es lo que permite reconocer un
+  número escrito 22 818 5000, sin el +56 adelante.
+
+### Cambiado
+- El CSV conserva exactamente sus columnas y la salida estándar del CLI
+  sus tres campos separados por tabulación. Quien ya procesa esa salida no
+  tiene que tocar nada: la evidencia va al JSON y al HTML, que son el
+  registro de la corrida, y no a la lista que se usa para escribir correos
+  ([ADR-0010](docs/adr/0010-export-contents-differ-by-format.md)).
+- `pipeline.verify_all` acepta pares `(correo, origen)` o tríos
+  `(correo, origen, evidencia)`. Los dos siguen funcionando, porque el
+  subcomando `verify` lee direcciones sueltas de un archivo y no tiene
+  página detrás de dónde sacar evidencia. En esos registros la clave
+  `evidence` no aparece, en vez de aparecer vacía: vacía significa que se
+  revisó la página y no había nada, y ausente significa que nadie miró.
+- La aplicación de escritorio recoge la evidencia y no la muestra en la
+  tabla de resultados. Llega igual al JSON y al HTML exportados desde la
+  interfaz.
+
+### Corregido
+- `docs/PRD.md` decía que el filtro .cl era una frontera de alcance
+  permanente. Cubre las direcciones extraídas de una página y nunca cubrió
+  los candidatos generados por patrón, que toman el dominio que uno
+  escriba. Dos versiones sostuvieron eso mientras el código hacía otra
+  cosa. Ahora el documento dice lo que el programa hace.
+- `docs/research/dotcom-attribution.md` ordenaba seis señales por lo que
+  cada una probaría si estuviera presente, sin haber comprobado si alguna
+  lo estaba. La que iba primera no apareció nunca. Las mediciones quedaron
+  agregadas al archivo y el orden viejo quedó marcado, no borrado.
+
+### Antes de instalar
+El ejecutable no está firmado digitalmente, así que Windows SmartScreen
+puede advertir al abrirlo. Algunos antivirus marcan como sospechoso
+cualquier ejecutable empaquetado con PyInstaller, sin que haya nada
+sospechoso adentro; es un problema conocido del empaquetado y está
+anotado en la hoja de ruta. El código está completo en este repositorio
+para quien prefiera compilarlo por su cuenta.
+
+RadarCL es para investigación OSINT legítima. No está autorizado su uso
+para envío masivo de correo no solicitado, acoso, ni ningún otro fin
+malicioso.
+
 ## [0.4.0] - 2026-07-24
 
 crt.sh estuvo caído unos quince minutos justo mientras se escribía esta

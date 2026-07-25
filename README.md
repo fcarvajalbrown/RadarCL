@@ -3,7 +3,7 @@
 
 # RadarCL
 
-![versión](https://img.shields.io/badge/versi%C3%B3n-0.4.0-blue)
+![versión](https://img.shields.io/badge/versi%C3%B3n-0.5.0-blue)
 ![licencia](https://img.shields.io/badge/licencia-Apache%202.0-green)
 ![plataforma](https://img.shields.io/badge/plataforma-Windows%20(GUI)%20%7C%20CLI%20sin%20Qt-slate)
 ![tecnología](https://img.shields.io/badge/tecnolog%C3%ADa-Python%20%7C%20PySide6-blue)

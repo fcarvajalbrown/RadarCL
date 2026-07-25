@@ -13,11 +13,15 @@
 ;
 ; Build:
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" RadarCL.iss
-;   Output: installer\RadarCL-v0.4.0-Setup.exe (gitignored — attach it to
-;   a GitHub Release rather than committing it)
+;   Output: installer\RadarCL-v{AppVersion}-Setup.exe (gitignored, attach
+;   it to a GitHub Release rather than committing it)
+;
+; ISCC never runs PyInstaller. Running it alone produces a setup with a
+; fresh timestamp wrapping a stale binary, and neither command fails. Run
+; the mtime check from CLAUDE.md between the two.
 
 #define AppName "RadarCL"
-#define AppVersion "0.4.0"
+#define AppVersion "0.5.0"
 #define AppPublisher "Felipe Carvajal Brown"
 #define AppURL "https://github.com/fcarvajalbrown/RadarCL"
 #define AppExeName "RadarCL.exe"
