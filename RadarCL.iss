@@ -21,7 +21,7 @@
 ; the mtime check from CLAUDE.md between the two.
 
 #define AppName "RadarCL"
-#define AppVersion "0.5.0"
+#define AppVersion "0.5.5"
 #define AppPublisher "Felipe Carvajal Brown"
 #define AppURL "https://github.com/fcarvajalbrown/RadarCL"
 #define AppExeName "RadarCL.exe"

@@ -8,6 +8,101 @@ Cada sección de este archivo es, tal cual, el texto de las notas del
 release correspondiente. Cómo se escribe una entrada nueva está en
 [docs/release-notes.md](docs/release-notes.md).
 
+## [0.5.5] - 2026-07-25
+
+Cada vez que RadarCL comprobaba una dirección se presentaba ante el
+servidor de correo como verify.cl, un dominio registrado a nombre de otra
+persona, así que cualquier reclamo o bloqueo que se ganara esta
+herramienta caía sobre un tercero. Esa resultó ser una confusión de seis,
+todas iguales por dentro: leer una respuesta que habla del remitente, de
+la ruta o del protocolo como si hablara de la dirección. Un 550 que
+significa "a ti no te acepto" ya no marca la dirección como inválida, y un
+buzón lleno tampoco, porque estar lleno prueba que existe. Quedan menos
+inválidos, y los que quedan pesan más.
+
+### Añadido
+- Un cuarto estado, "Acepta todo". Hay servidores que responden 250 a
+  cualquier destinatario, así que aceptar no prueba que el buzón exista.
+  Se detecta con dos sondas de veinte caracteres aleatorios sobre la
+  conexión ya abierta, una vez por dominio y no una vez por dirección,
+  porque aceptar todo es una propiedad del servidor. Queda fuera del CSV,
+  por la misma razón que los desconocidos, y aparece en JSON y HTML
+  ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)). Medido
+  sobre veinte dominios `.cl` reales: 17% de los alcanzables acepta todo.
+- Las respuestas 4xx que se leen como greylisting quedan marcadas como
+  dignas de reintentar, con el motivo escrito en el detalle. Esas
+  direcciones están vivas y contestan distinto más tarde. El 421 queda
+  fuera a propósito: reintentar rápido a un servidor saturado es
+  exactamente como una demora se convierte en un bloqueo.
+- JSON y HTML dicen ahora si una dirección fue generada a partir de un
+  patrón o encontrada publicada. Son dos afirmaciones distintas y hasta
+  ahora se veían iguales
+  ([ADR-0018](docs/adr/0018-generation-stays-in-cl-and-a-guess-says-so.md)).
+- `RADARCL_HELO` para quien ejecute RadarCL desde un equipo con dominio
+  propio y PTR que calce. Es la única forma correcta de mejorar la
+  aceptación: la otra es nombrar un dominio que no es suyo.
+
+### Cambiado
+- RadarCL se presenta con el nombre de su propio equipo y usa el remitente
+  nulo, la convención para sondas que nunca envían y lo que usa la
+  verificación de direcciones de Postfix. Antes decía `verify.cl` y
+  `check@verify.cl`, un dominio con registro y servidores de nombres a
+  nombre de un tercero
+  ([ADR-0017](docs/adr/0017-a-reply-is-evidence-only-about-its-subject.md)).
+- Un 5xx ya no es inválido por empezar con 5. El dígito del medio del
+  código extendido (RFC 3463) dice de qué habla la respuesta: solo los
+  temas 1 y 2 hablan del destinatario. Política, ruta, protocolo y
+  problemas del sistema del otro lado pasan a desconocido, con el motivo
+  explicado. Un 5xx sin código extendido sigue siendo inválido.
+- Un MX nulo (RFC 7505) pasa a inválido. El dominio está diciendo con
+  todas sus letras que no acepta correo, y eso se registraba como si nadie
+  hubiera contestado.
+- La generación por patrón se limita a `.cl`, igual que la extracción.
+  Apuntar a un dominio `.com` producía candidatos que la verificación
+  rechazaba después como "formato inválido", lo que era falso: el formato
+  estaba bien y lo que sobraba era el alcance. Donde una empresa tiene
+  personal en Chile suele tener también un dominio de correo `.cl`, y ese
+  RadarCL ya lo soporta entero.
+
+**Cambio incompatible, solo para quien use `app/core/` como biblioteca.**
+`verify()` y `pipeline.verify_all()` dejan de aceptar el parámetro
+`api_key`, y `VerificationResult` pierde el campo `api_status`. Para
+migrar, borre el argumento de sus llamadas: no hacía nada, ninguna interfaz
+lo exponía y nada leía su resultado. Quien recorra los estados por su
+nombre debe además contemplar `catch_all`, que es nuevo.
+
+### Eliminado
+- La etapa 4 del verificador, la "API de terceros". Era un marcador de
+  posición que ninguna interfaz alcanzaba: ni la línea de comandos ni la
+  aplicación de escritorio pasaban jamás una clave, nada leía lo que
+  escribía, y solo podía ejecutarse después de un SMTP completo. Se cerró
+  la pregunta en vez de construirla: los servicios comerciales cuestan y
+  aciertan entre 70% y 85% en dominios que aceptan todo, que es justamente
+  el caso que hacía falta resolver
+  ([ADR-0015](docs/adr/0015-no-third-party-verification-api.md)).
+
+### Corregido
+- Un buzón lleno (`X.2.2`) se marcaba como inválido. Estar lleno prueba
+  que el buzón existe, así que ahora queda como desconocido con el motivo
+  escrito.
+- `docs/research/dotcom-attribution.md` ordenaba seis señales por lo que
+  cada una probaría si estuviera presente, sin haber comprobado si alguna
+  lo estaba. La primera no apareció en ninguna de las 200 páginas
+  rastreadas. Las mediciones quedaron agregadas y el orden viejo quedó
+  marcado, no borrado.
+- `docs/PRD.md` decía que el filtro `.cl` era una frontera permanente.
+  Cubría lo extraído y nunca cubrió lo generado. Ahora lo cubre.
+
+### Antes de instalar
+Esta versión no trae instalador. Es un hito de código, no de
+distribución, y la aplicación de escritorio se reconstruye en la próxima
+versión 0.1. Quien quiera estos cambios hoy los tiene clonando el
+repositorio y ejecutando `python -m app.main` o `python -m app.cli`.
+
+RadarCL es para investigación OSINT legítima. No está autorizado su uso
+para envío masivo de correo no solicitado, acoso, ni ningún otro fin
+malicioso.
+
 ## [0.5.0] - 2026-07-24
 
 Un candidato generado para bhp.com salía en la misma lista que
