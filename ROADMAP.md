@@ -259,11 +259,15 @@ it. Evidence and sample limits are in
       ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)).
 
 ### v0.60 — What the measurements changed
-**Status:** In Progress — both original items measured and declined
+**Status:** Done — both original items measured and declined
 ([ADR-0019](docs/adr/0019-the-sibling-cl-hint-is-measured-and-declined.md),
-[ADR-0020](docs/adr/0020-a-convenience-sample-overstated-a-source-400-times.md)).
-Item 3 is what the version actually ships. No `0.6.0` tag exists and
-`app/__init__.py` is still `0.5.5`.
+[ADR-0020](docs/adr/0020-a-convenience-sample-overstated-a-source-400-times.md)),
+and two extractor items shipped in their place
+([ADR-0021](docs/adr/0021-an-address-a-reader-cannot-see-is-not-a-contact.md),
+[ADR-0022](docs/adr/0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md)).
+No `0.6.0` tag exists yet and `app/__init__.py` is still `0.5.5`; cutting
+one is a separate decision, and it would be the first installer since
+v0.5.0.
 
 **This section used to be called "Reaching the right domain".** It was
 renamed once both of its targeting items were declined: a title should
@@ -377,14 +381,29 @@ commercial email-finders work.
       recorded here rather than left to be assumed from the version's other
       entries.
 
-- [ ] **Decode Cloudflare-obfuscated addresses.** Cloudflare replaces
-      `mailto:` with `/cdn-cgi/l/email-protection#<hex>`, a single-byte XOR
-      whose key is the first octet of the ciphertext. Its own literature
-      calls it "enough to throw off the basic scripts that hunt for
-      `mailto:` links", and RadarCL is such a script. The extractor already
-      de-obfuscates the `user [at] domain.cl` style; this is the same job
-      against the form actually in use. Prevalence on `.cl` sites is
-      measured first, with a normal gate.
+- [x] **Decode Cloudflare-obfuscated addresses.** Cloudflare replaces a
+      `mailto:` with `/cdn-cgi/l/email-protection#<hex>`, and an inline
+      address with a `data-cfemail` span. Single-byte XOR, key in the first
+      octet. Its own literature calls it "enough to throw off the basic
+      scripts that hunt for `mailto:` links", and RadarCL was such a script.
+
+      Measured over 100 `.cl` domains from the same frame: **10 of 77
+      reachable homepages use it, 13.0% [7.2%, 22.3%]**, and 9 of 77 hide an
+      address found nowhere else on the page. **Municipalities 6 of 16
+      against companies 4 of 59** — and municipalities are what this tool is
+      built around. Recovered `alcaldia@hualane.cl`, `partes@tome.cl`,
+      `contacto@sanbernardo.cl` and more, from homepages alone.
+
+      **No threshold, deliberately**, and
+      [ADR-0022](docs/adr/0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md)
+      records why so the version does not read as gating what it wanted to
+      decline and waiving the gate on what it wanted to build. A source
+      spends a request per scan and has to earn it. A parser reads markup
+      already in memory, cannot invent an address, and never fires where the
+      encoding is absent, so there is no rate at which it becomes harmful.
+      The measurement still ran, and still came first, to keep the number
+      honest rather than to decide anything. Full run in
+      [docs/research/cloudflare-email-obfuscation.md](docs/research/cloudflare-email-obfuscation.md).
 
 ### v0.65 — Distributed crawling, part 1: job distribution
 **Status:** Not Started
