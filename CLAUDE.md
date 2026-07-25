@@ -88,6 +88,30 @@ publishing — PyInstaller builds fail at runtime, not at build time, and
 the frozen-asset path resolution (`sys._MEIPASS`) is exactly the kind of
 thing that only breaks in the packaged exe.
 
+**Check the exe is not stale before packaging it.** ISCC only re-wraps
+whatever `dist\RadarCL.exe` already is; it never runs PyInstaller. Run
+ISCC alone after editing code and you get a setup with a fresh timestamp
+and a stale binary inside, and neither command fails. This happened
+during v0.4.0: a setup built at 21:30 wrapped a 19:42 exe that still
+contained a stage removed at 20:51. In PowerShell, between the two
+commands above:
+
+```powershell
+$exe = Get-Item dist\RadarCL.exe
+$src = Get-ChildItem app -Recurse -File -Include *.py |
+       Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($src.LastWriteTime -gt $exe.LastWriteTime) {
+  Write-Output "STALE: $($src.Name) is newer than dist\RadarCL.exe"
+} else { Write-Output "OK" }
+```
+
+`-Include *.py` matters: without it `__pycache__` churn from a test run
+reports STALE every time, and a guard that cries wolf gets ignored. Both
+branches were verified on the v0.4.0 build. A second, content-level check
+is worth it when a release removes something: grep the exe for a string
+that should be gone (`grep -c "subdere.gov.cl" dist\RadarCL.exe` returned
+0 for v0.4.0) — cheap proof the binary is the code you think it is.
+
 **4. Publish.** Tag and Release, with the installer attached:
 
 ```bash
