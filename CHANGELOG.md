@@ -8,6 +8,72 @@ Cada sección de este archivo es, tal cual, el texto de las notas del
 release correspondiente. Cómo se escribe una entrada nueva está en
 [docs/release-notes.md](docs/release-notes.md).
 
+## [0.6.0] - 2026-08-05
+
+Buscar aprimin@aprimin.cl en Google toma dos segundos. RadarCL escaneaba
+aprimin.cl, informaba "0 correos encontrados" y terminaba en tres
+páginas, sin decir en ningún momento que el sitio no lo dejó entrar. El
+servidor contesta 202 con una página de 169 bytes, y 202 es un código de
+éxito, así que el muro pasaba por página buena y vacía. Cero no era un
+hallazgo, era una respuesta que nadie alcanzó a leer.
+
+Este es el primer instalador desde la v0.5.0, así que trae también todo
+lo de la v0.5.5: los dominios que aceptan cualquier destinatario y la
+reclasificación de las respuestas SMTP.
+
+### Añadido
+- RadarCL avisa cuando un sitio no lo dejó leer ninguna página, en vez de
+  informar cero correos como si eso fuera un resultado. El muro se
+  reconoce por la forma de la respuesta (código 2xx, menos de 2 KB, sin
+  texto legible y sin enlaces que seguir), no por el proveedor, así que
+  también se detecta uno que nadie ha visto antes. La lista de firmas
+  (SiteGround, Cloudflare, Imperva, Sucuri, DDoS-Guard) solo pone el
+  nombre y nunca alcanza para marcar sola una página. En la línea de
+  comandos, un escaneo donde no se pudo leer nada termina con código de
+  salida 1
+  ([ADR-0023](docs/adr/0023-a-wall-is-not-an-empty-site.md)).
+- Las direcciones que Cloudflare ofusca ahora se leen. Son el 13,0% de
+  los sitios `.cl` alcanzables en una muestra de 100 dominios al azar, y
+  el 37,5% de las municipalidades de esa muestra
+  ([ADR-0022](docs/adr/0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md)).
+
+### Cambiado
+- El CSV deja fuera las direcciones que solo aparecían en partes del HTML
+  que un lector no ve. Suelen ser trampas puestas ahí para recolectores,
+  y basta una entrega a una trampa para que bloqueen al remitente, lo que
+  se lleva por delante todas las demás direcciones del archivo. Siguen
+  apareciendo en JSON y HTML, marcadas como ocultas
+  ([ADR-0021](docs/adr/0021-an-address-a-reader-cannot-see-is-not-a-contact.md)).
+- Las exportaciones de la aplicación de escritorio distinguen una
+  dirección generada a partir de un patrón de una encontrada publicada.
+  La marca existe desde la v0.5.5 y hasta ahora solo llegaba a las
+  exportaciones de la línea de comandos.
+
+### Corregido
+- Los totales de cada sesión se escriben al terminar una ejecución.
+  `total_found` y `total_valid` estaban en la tabla desde que existe el
+  esquema y no los escribía nadie, así que cualquier sesión leída de
+  vuelta declaraba no haber encontrado nada. `total_valid` cuenta solo
+  las válidas y deja fuera las de dominios que aceptan todo, la misma
+  definición que usa el CSV.
+- El segundo servidor de nombres público se consulta de verdad. El
+  `lifetime` de dnspython es el presupuesto de la pregunta completa y
+  estaba igualado al `timeout` de cada servidor, así que el primero se
+  comía el plazo entero y la consulta fallaba antes de llegar al
+  segundo. La redundancia era decorativa.
+
+### Antes de instalar
+El ejecutable no está firmado digitalmente, así que Windows SmartScreen
+puede advertir al abrirlo. Algunos antivirus marcan como sospechoso
+cualquier ejecutable empaquetado con PyInstaller, sin que haya nada
+sospechoso adentro; es un problema conocido del empaquetado y está
+anotado en la hoja de ruta. El código está completo en este repositorio
+para quien prefiera compilarlo por su cuenta.
+
+RadarCL es para investigación OSINT legítima. No está autorizado su uso
+para envío masivo de correo no solicitado, acoso, ni ningún otro fin
+malicioso.
+
 ## [0.5.5] - 2026-07-25
 
 Cada vez que RadarCL comprobaba una dirección se presentaba ante el
