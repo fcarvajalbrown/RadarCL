@@ -265,9 +265,11 @@ it. Evidence and sample limits are in
 and two extractor items shipped in their place
 ([ADR-0021](docs/adr/0021-an-address-a-reader-cannot-see-is-not-a-contact.md),
 [ADR-0022](docs/adr/0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md)).
-No `0.6.0` tag exists yet and `app/__init__.py` is still `0.5.5`; cutting
-one is a separate decision, and it would be the first installer since
-v0.5.0.
+A fourth item arrived from outside the plan, on a scan that reported zero
+against a site that publishes its address
+([ADR-0023](docs/adr/0023-a-wall-is-not-an-empty-site.md)). Released as
+`0.6.0`, the first installer since v0.5.0, so it also delivers everything
+in 0.5.5.
 
 **This section used to be called "Reaching the right domain".** It was
 renamed once both of its targeting items were declined: a title should
@@ -404,6 +406,32 @@ commercial email-finders work.
       The measurement still ran, and still came first, to keep the number
       honest rather than to decide anything. Full run in
       [docs/research/cloudflare-email-obfuscation.md](docs/research/cloudflare-email-obfuscation.md).
+
+- [x] **Report a wall instead of an empty site.** Not planned. It came
+      from a scan of `aprimin.cl`, which publishes `aprimin@aprimin.cl`
+      and which RadarCL reported as zero. The site answers every request
+      with 202 and a 169-byte SiteGround `sgcaptcha` stub, to a current
+      Chrome user agent as much as to ours, and the challenge behind it
+      runs a proof-of-work in a Web Worker that no HTTP client passes.
+      `202` is a success code, so the stub cleared `raise_for_status`; its
+      only `href` is `data:;`, correctly dropped, so the frontier emptied
+      after the seeds. Three pages, zero addresses, no signal.
+
+      Detection is by shape, not by vendor: 2xx, under 2 KB, no readable
+      text, no followable link. A signature list names the vendor and
+      never promotes a page on its own, so a wall from a vendor nobody has
+      seen still reports rather than reproducing the silent zero. The CLI
+      exits 1 when nothing at all was readable, and the GUI carries the
+      sentence into the message beside the Desktop CSV.
+      See [ADR-0023](docs/adr/0023-a-wall-is-not-an-empty-site.md).
+
+      **How often `.cl` sites are walled was not measured**, so getting
+      *through* a wall stays undecided. That needs a headless browser,
+      which is a real per-install cost against
+      [ADR-0008](docs/adr/0008-vendored-core-dependencies.md) and
+      [ADR-0005](docs/adr/0005-hardware-aware-auto-tuning.md), so it is
+      source-shaped and does need a gate. The measurement, its threshold
+      and its verdict get their own ADR.
 
 ### v0.65 — Distributed crawling, part 1: job distribution
 **Status:** Not Started

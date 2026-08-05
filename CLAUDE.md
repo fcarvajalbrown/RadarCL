@@ -2,29 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Where this left off — read first (2026-07-25)
+## Where this left off — read first (2026-08-05)
 
-**v0.60 is Done and unreleased. The next job is cutting `v0.6.0`.**
+**v0.6.0 is released.** Tag, GitHub Release and installer all exist, and it
+was the first installer since v0.5.0, so the desktop app finally carries
+everything from v0.55 and v0.60 as well as ADR-0023's wall detection. The
+version-drift gap that sat here for two weeks is closed: all four places
+say `0.6.0`.
 
-`app/__init__.py` still says `0.5.5` and the last installer is **v0.5.0**, so
-the desktop app is missing everything below. The GUI is the build that
-matters here: it auto-writes a CSV to the user's Desktop, so the spam-trap
-fix protects GUI users specifically, and they are the ones who do not have it.
-
-Shipped in code, never in a binary:
-
-| From | What the v0.5.0 exe lacks |
-|---|---|
-| v0.55 | Catch-all detection ([ADR-0016](docs/adr/0016-catch-all-domains-are-not-valid.md)) |
-| v0.55 | Corrected SMTP classification — a `550 5.7.1` no longer marks a live address dead ([ADR-0017](docs/adr/0017-a-reply-is-evidence-only-about-its-subject.md)) |
-| v0.60 | Spam traps kept out of the CSV ([ADR-0021](docs/adr/0021-an-address-a-reader-cannot-see-is-not-a-contact.md)) |
-| v0.60 | Cloudflare-obfuscated addresses decoded ([ADR-0022](docs/adr/0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md)) |
-| v0.60 | `generated` finally reaching GUI exports — it never had before |
-
-Cutting it means the full Releases procedure below: four version bumps, the
-`pytest -m "not smtp"` and `vendor.py --check` gate, PyInstaller **then** the
-mtime staleness check **then** ISCC, and release notes through
-[docs/release-notes.md](docs/release-notes.md). Ask before publishing.
+The last item landed from outside the roadmap. A scan of `aprimin.cl`, which
+publishes `aprimin@aprimin.cl`, reported zero and exited in three pages,
+because the site answers every request with 202 and a 169-byte SiteGround
+`sgcaptcha` stub. `202` is a success code, so the stub cleared
+`raise_for_status` and a wall was indistinguishable from a site with no
+addresses. `detect_wall` now judges a response by shape rather than vendor
+([ADR-0023](docs/adr/0023-a-wall-is-not-an-empty-site.md)).
 
 **Known, deliberate, and not to be rediscovered as bugs:**
 
@@ -39,6 +31,12 @@ mtime staleness check **then** ISCC, and release notes through
   demonstrated defect was enough. So nobody knows how often Chilean sites
   actually plant traps — see ADR-0021, which says so rather than implying a
   number exists.
+- **Bot-wall prevalence on `.cl` was never measured either.** RadarCL now
+  reports a wall honestly; getting *through* one is undecided and gated on
+  that measurement, because it needs a headless browser and that is a real
+  per-install cost against ADR-0008 and ADR-0005. ADR-0023 deliberately
+  pre-registers no threshold, since setting one before knowing what is being
+  decided is the invention ADR-0022 refused. The measurement gets its own ADR.
 - **The session store is write-only.** `load_session` and `list_sessions` have
   no callers anywhere. `evidence` and `generated` are deliberately *not*
   persisted: ADR-0006 treats session data as sensitive, and adding per-address
