@@ -92,6 +92,33 @@ def test_crawl_and_extract_reports_pages(monkeypatch) -> None:
     assert seen == [("http://a.cl", 1), ("http://b.cl", 2)]
 
 
+def test_crawl_and_extract_forwards_blocked_pages(monkeypatch) -> None:
+    """
+    A wall the crawler hit must reach the caller. Swallowing it here would
+    leave the CLI and the GUI reporting an absence nobody observed
+    (ADR-0023).
+    """
+    class _Blocking(_FakeCrawler):
+        pages: list[tuple[str, str]] = []
+
+        async def crawl(self):
+            self.kwargs['on_blocked']('https://www.aprimin.cl', 'SiteGround')
+            for url, html in self.pages:
+                yield url, html
+
+    monkeypatch.setattr(pipeline, "Crawler", _Blocking)
+    seen: list[tuple[str, str]] = []
+
+    found = asyncio.run(_drain(pipeline.crawl_and_extract(
+        ["https://www.aprimin.cl"],
+        request_delay=0,
+        on_blocked=lambda url, vendor: seen.append((url, vendor)),
+    )))
+
+    assert found == []
+    assert seen == [('https://www.aprimin.cl', 'SiteGround')]
+
+
 def test_crawl_and_extract_honours_should_stop(monkeypatch) -> None:
     """should_stop halts the crawl even on pages yielding no addresses."""
     _with_pages(monkeypatch, [("http://a.cl", ""), ("http://b.cl", "")])

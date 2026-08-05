@@ -71,6 +71,7 @@ async def crawl_and_extract(
     concurrency: int = 3,
     pause_event: asyncio.Event | None = None,
     on_page: Callable[[str, int], None] | None = None,
+    on_blocked: Callable[[str, str], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
 ) -> AsyncGenerator[Discovery, None]:
     """
@@ -97,6 +98,12 @@ async def crawl_and_extract(
         Seconds slept after each page, to keep load low on old hardware.
     on_page : Callable[[str, int], None] | None
         Called once per fetched page with (url, running_page_count).
+    on_blocked : Callable[[str, str], None] | None
+        Called with (url, vendor) for each page fetched but unreadable -
+        an anti-bot wall, or a shell carrying nothing. Vendor is '' when
+        unrecognised. A consumer that ignores this reports a count of
+        addresses as if it were a count of addresses that exist, which is
+        the inference ADR-0023 forbids.
     should_stop : Callable[[], bool] | None
         Polled once per page. Returning True ends the crawl. This is
         page-granular on purpose: a consumer that could only stop on a
@@ -120,6 +127,7 @@ async def crawl_and_extract(
         respect_robots=respect_robots,
         concurrency=concurrency,
         pause_event=pause_event,  # type: ignore[arg-type]
+        on_blocked=on_blocked,
     )
 
     pages = 0

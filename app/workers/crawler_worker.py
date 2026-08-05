@@ -34,6 +34,11 @@ class CrawlerWorker(QThread):
         signals carry one shape.
     debug_message : Signal(str)
         Emitted for crawler debug messages (URLs visited, errors).
+    page_blocked : Signal(str, str)
+        Emitted as (url, vendor) for each page fetched but unreadable.
+        Vendor is '' when the wall is unrecognised. Without this the GUI
+        would auto-export an empty CSV to the Desktop and say nothing about
+        why it is empty (ADR-0023).
     crawl_finished : Signal()
         Emitted when the crawl completes or is stopped.
     """
@@ -42,6 +47,7 @@ class CrawlerWorker(QThread):
     candidate_found: Signal = Signal(str, str, object, bool)
     debug_message: Signal = Signal(str)
     page_crawled: Signal = Signal(int)
+    page_blocked: Signal = Signal(str, str)
     crawl_finished: Signal = Signal()
 
     def __init__(
@@ -122,6 +128,11 @@ class CrawlerWorker(QThread):
             self.debug_message.emit(f"[crawl] {url}")
             self.page_crawled.emit(count)
 
+        def on_blocked(url: str, vendor: str) -> None:
+            suffix = f" - {vendor}" if vendor else ""
+            self.debug_message.emit(f"[bloqueado] {url}{suffix}")
+            self.page_blocked.emit(url, vendor)
+
         async for discovery in crawl_and_extract(
             self._seeds,
             target_domain=self._target,
@@ -134,6 +145,7 @@ class CrawlerWorker(QThread):
             concurrency=self._concurrency,
             pause_event=self._pause_event,
             on_page=on_page,
+            on_blocked=on_blocked,
             should_stop=lambda: self._stop_flag,
         ):
             if discovery.generated:

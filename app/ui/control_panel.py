@@ -22,6 +22,7 @@ from PySide6.QtCore import Signal, Qt, QThread
 from PySide6.QtGui import QFont, QIcon
 
 from app.core import session
+from app.core.crawler import describe_walls
 from app.core.hw_profile import get_hw_profile
 from app.core.pattern_generator import COMMON_PATTERNS
 from app.core.seed_discoverer import discover_seeds
@@ -113,6 +114,8 @@ class ControlPanel(QWidget):
             tuple[str, str, tuple[str, ...], bool, bool]
         ] = []
         self._discovered_seeds: list[str] = []
+        self._blocked_pages: list[tuple[str, str]] = []
+        self._pages_read: int = 0
         self._session_id: int | None = None
         self._is_running: bool = False
         self._is_paused: bool = False
@@ -560,6 +563,8 @@ class ControlPanel(QWidget):
 
         self._seed_error.hide()
         self._collected_emails = []
+        self._blocked_pages = []
+        self._pages_read = 0
         self._force_quit = False
         self._is_running = True
         self._is_paused = False
@@ -586,6 +591,7 @@ class ControlPanel(QWidget):
         self._crawler.candidate_found.connect(self._on_candidate_found)
         self._crawler.crawl_finished.connect(self._on_crawl_finished)
         self._crawler.page_crawled.connect(self._on_page_crawled)
+        self._crawler.page_blocked.connect(self._on_page_blocked)
         self._crawler.start()
 
     # ── Slot: Pause / Resume
@@ -746,17 +752,29 @@ class ControlPanel(QWidget):
         self._is_running = False
         self._set_running_state(False)
         if not self._force_quit:
+            walls = describe_walls(self._blocked_pages, self._pages_read)
             self._status_label.setText(
                 f"Rastreo completo. {len(self._collected_emails)} correos "
                 f"encontrados.\n"
-                "Pulsa Detener y verificar para revisarlos."
+                + (f"{walls}\n" if walls else "")
+                + "Pulsa Detener y verificar para revisarlos."
             )
             # Re-enable Stop & Verify so user can still verify
             self._stop_verify_btn.setEnabled(True)
 
     def _on_page_crawled(self, count: int) -> None:
         """Update status label with current page count."""
+        self._pages_read = count
         self._status_label.setText(f"Rastreando… {count} sitios visitados")
+
+    def _on_page_blocked(self, url: str, vendor: str) -> None:
+        """
+        Record a page that was fetched but could not be read.
+
+        The GUI auto-exports a CSV to the Desktop, so a walled site hands
+        the user an empty file. It has to say why (ADR-0023).
+        """
+        self._blocked_pages.append((url, vendor))
 
     def _on_verify_progress(self, done: int, total: int) -> None:
         """Update progress bar during verification."""
@@ -770,9 +788,11 @@ class ControlPanel(QWidget):
             session.update_email_status(self._session_id, r['email'], r['status'])
         valid = sum(1 for r in results if r.get('status') == 'valid')
         session.update_session_totals(self._session_id, len(results), valid)
+        walls = describe_walls(self._blocked_pages, self._pages_read)
         self._status_label.setText(
             f"Listo. {valid} correos válidos encontrados.\n"
-            "Los resultados se guardaron en tu Escritorio."
+            + (f"{walls}\n" if walls else "")
+            + "Los resultados se guardaron en tu Escritorio."
         )
         self._new_session_btn.setVisible(True)
         self.verification_done.emit(results)
@@ -805,6 +825,8 @@ class ControlPanel(QWidget):
         """
         self._collected_emails = []
         self._discovered_seeds = []
+        self._blocked_pages = []
+        self._pages_read = 0
         self._is_running = False
         self._is_paused = False
         self._force_quit = False

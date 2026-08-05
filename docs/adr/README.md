@@ -24,3 +24,4 @@
 | [0020](0020-a-convenience-sample-overstated-a-source-400-times.md) | A convenience sample overstated a source 400 times | Accepted |
 | [0021](0021-an-address-a-reader-cannot-see-is-not-a-contact.md) | An address a reader cannot see is not a contact | Accepted |
 | [0022](0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md) | A parser is not a source, and does not need a gate | Accepted |
+| [0023](0023-a-wall-is-not-an-empty-site.md) | A wall is not an empty site | Accepted |

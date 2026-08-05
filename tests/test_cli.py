@@ -339,6 +339,101 @@ def test_scan_runs_pipeline_and_prints_results(
     assert seen_evidence == [("lexicon", "phone-cl")]
 
 
+def _fake_crawl_blocking(*pages: tuple[str, str]):
+    """Build a crawl_and_extract stub that only ever reports walls."""
+    async def _crawl(seeds, target_domain=None, **kwargs):
+        for url, vendor in pages:
+            kwargs['on_blocked'](url, vendor)
+        for _ in ():
+            yield
+
+    return _crawl
+
+
+def test_scan_reports_a_wall_instead_of_zero_addresses(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    """
+    Nothing readable is not the same finding as nothing there. Reporting
+    the count alone asserts an absence nobody observed (ADR-0023).
+    """
+    seeds_file = tmp_path / "seeds.txt"
+    seeds_file.write_text("https://www.aprimin.cl\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        cli, "crawl_and_extract",
+        _fake_crawl_blocking(("https://www.aprimin.cl", "SiteGround")),
+    )
+    monkeypatch.setattr(cli, "verify_all", lambda emails, **kw: iter([]))
+
+    code = cli.main([
+        "scan", "aprimin.cl", "--seeds", str(seeds_file), "--no-session"
+    ])
+
+    err = capsys.readouterr().err
+    assert "SiteGround" in err
+    assert "Ninguna pagina se pudo leer" in err
+    assert "no significa que el sitio no tenga correos" in err
+    assert code == 1
+
+
+def test_scan_names_no_vendor_when_the_wall_is_unrecognised(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    """An unnamed wall still reports; it just cannot say who served it."""
+    seeds_file = tmp_path / "seeds.txt"
+    seeds_file.write_text("https://otro.cl\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        cli, "crawl_and_extract", _fake_crawl_blocking(("https://otro.cl", "")),
+    )
+    monkeypatch.setattr(cli, "verify_all", lambda emails, **kw: iter([]))
+
+    cli.main(["scan", "otro.cl", "--seeds", str(seeds_file), "--no-session"])
+
+    err = capsys.readouterr().err
+    assert "Ninguna pagina se pudo leer:" in err
+    assert "()" not in err
+
+
+def test_scan_still_succeeds_when_some_pages_were_readable(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    """
+    A partly walled site is not a failed scan. The blocked pages are still
+    reported, so the count is read with them in view.
+    """
+    seeds_file = tmp_path / "seeds.txt"
+    seeds_file.write_text("https://mixto.cl\n", encoding="utf-8")
+
+    async def _crawl(seeds, target_domain=None, **kwargs):
+        kwargs['on_blocked']("https://mixto.cl/privado", "Cloudflare")
+        kwargs['on_page']("https://mixto.cl", 1)
+        yield cli.Discovery(
+            email="contacto@mixto.cl",
+            source_url="https://mixto.cl",
+            generated=False,
+        )
+
+    monkeypatch.setattr(cli, "crawl_and_extract", _crawl)
+    monkeypatch.setattr(
+        cli, "verify_all",
+        lambda emails, **kw: iter([
+            {"email": "contacto@mixto.cl", "source": "https://mixto.cl",
+             "status": "valid", "error": ""}
+        ]),
+    )
+
+    code = cli.main([
+        "scan", "mixto.cl", "--seeds", str(seeds_file), "--no-session"
+    ])
+
+    err = capsys.readouterr().err
+    assert code == 0
+    assert "1 pagina" in err
+    assert "Cloudflare" in err
+
+
 def test_scan_fails_when_no_seeds(monkeypatch, capsys) -> None:
     """With no seeds discovered, scan reports an error and exits 1."""
     async def _no_seeds(domain, use_duckduckgo=True, max_seeds=20):
