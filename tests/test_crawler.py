@@ -176,6 +176,164 @@ def test_a_walled_page_is_reported_and_never_yielded(monkeypatch) -> None:
     assert blocked == [('https://www.aprimin.cl', 'SiteGround')]
 
 
+def _counting_fetch(peak: list[int], started: list[str], delay: float = 0.05):
+    """
+    Build a `_fetch` replacement that records how many run at once.
+
+    Replaces the fetch rather than the transport so the test measures the
+    crawl loop and touches no HTTP stack at all.
+    """
+    inflight = [0]
+
+    async def fetch(self, client, url):
+        started.append(url)
+        inflight[0] += 1
+        peak[0] = max(peak[0], inflight[0])
+        await asyncio.sleep(delay)
+        inflight[0] -= 1
+        return ORDINARY_PAGE
+
+    return fetch
+
+
+def test_requests_run_concurrently(monkeypatch) -> None:
+    """
+    The declared concurrency is the number of requests actually in flight.
+
+    Before ADR-0025 this peaked at 1 for every value, because the loop
+    awaited each fetch inline and the semaphore never had a second waiter.
+    """
+    peak, started = [0], []
+    monkeypatch.setattr(Crawler, '_fetch', _counting_fetch(peak, started))
+
+    crawler = Crawler(
+        seeds=[f'https://ejemplo.cl/{n}' for n in range(6)],
+        max_depth=0,
+        concurrency=3,
+    )
+    pages = asyncio.run(_crawl(crawler))
+
+    assert len(pages) == 6
+    assert peak[0] == 3
+
+
+def test_concurrency_one_stays_serial(monkeypatch) -> None:
+    """One is a real setting, not the only behaviour available."""
+    peak, started = [0], []
+    monkeypatch.setattr(Crawler, '_fetch', _counting_fetch(peak, started))
+
+    crawler = Crawler(
+        seeds=[f'https://ejemplo.cl/{n}' for n in range(4)],
+        max_depth=0,
+        concurrency=1,
+    )
+    pages = asyncio.run(_crawl(crawler))
+
+    assert len(pages) == 4
+    assert peak[0] == 1
+
+
+def test_the_page_cap_bounds_requests_not_just_results(monkeypatch) -> None:
+    """
+    Six seeds and a cap of two must not cost six requests.
+
+    With several fetches in flight the cap has to be checked before
+    dispatch; checking it only on the way out would pay for four pages
+    nobody sees.
+    """
+    peak, started = [0], []
+    monkeypatch.setattr(Crawler, '_fetch', _counting_fetch(peak, started))
+
+    crawler = Crawler(
+        seeds=[f'https://ejemplo.cl/{n}' for n in range(6)],
+        max_depth=0,
+        concurrency=5,
+        max_pages=2,
+    )
+    pages = asyncio.run(_crawl(crawler))
+
+    assert len(pages) == 2
+    assert len(started) == 2
+
+
+def test_pausing_stops_new_requests(monkeypatch) -> None:
+    """
+    A pause holds the frontier and dispatches nothing while it lasts.
+
+    Requests already in flight are not cancelled: the response has been
+    paid for, and throwing it away buys nothing.
+    """
+    peak, started = [0], []
+    monkeypatch.setattr(Crawler, '_fetch', _counting_fetch(peak, started, 0.0))
+
+    async def scenario():
+        crawler = Crawler(
+            seeds=[f'https://ejemplo.cl/{n}' for n in range(3)],
+            max_depth=0,
+            concurrency=2,
+        )
+        crawler.pause()
+
+        pages = []
+
+        async def consume():
+            async for page in crawler.crawl():
+                pages.append(page)
+
+        task = asyncio.create_task(consume())
+        await asyncio.sleep(0.05)
+        while_paused = list(started)
+
+        crawler.resume()
+        await asyncio.wait_for(task, 2)
+        return while_paused, pages
+
+    while_paused, pages = asyncio.run(scenario())
+
+    assert while_paused == []
+    assert len(pages) == 3
+
+
+def test_closing_the_crawl_cancels_requests_in_flight(monkeypatch) -> None:
+    """
+    A consumer that stops must not leave requests running behind it.
+
+    `should_stop` in the pipeline breaks out of the loop, which closes this
+    generator; whatever was still outstanding is cancelled there.
+    """
+    cancelled: list[str] = []
+
+    async def fetch(self, client, url):
+        if url.endswith('/0'):
+            return ORDINARY_PAGE
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            cancelled.append(url)
+            raise
+        return ORDINARY_PAGE
+
+    monkeypatch.setattr(Crawler, '_fetch', fetch)
+
+    async def scenario():
+        crawler = Crawler(
+            seeds=[f'https://ejemplo.cl/{n}' for n in range(3)],
+            max_depth=0,
+            concurrency=3,
+        )
+        pages = crawler.crawl()
+        async for _ in pages:
+            break
+        await pages.aclose()
+        await asyncio.sleep(0.01)
+
+    asyncio.run(scenario())
+
+    assert sorted(cancelled) == [
+        'https://ejemplo.cl/1', 'https://ejemplo.cl/2',
+    ]
+
+
 def test_an_ordinary_page_is_yielded_and_not_reported(monkeypatch) -> None:
     """Detection must not cost the crawler a readable page."""
     monkeypatch.setattr(

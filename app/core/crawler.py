@@ -7,6 +7,7 @@ Phase 2 (optional): follows external links found on .cl pages,
 """
 
 import asyncio
+from collections import deque
 from dataclasses import dataclass
 from typing import AsyncGenerator, Callable, Set
 from urllib.parse import urljoin, urlparse
@@ -193,7 +194,11 @@ class Crawler:
     max_depth : int
         Maximum link-follow depth from seeds.
     concurrency : int
-        Simultaneous HTTP requests.
+        Simultaneous HTTP requests, and the real number of them since
+        [ADR-0025](../../docs/adr/0025-concurrency-is-real-and-the-user-sets-it.md).
+        Until then `crawl` awaited each fetch inline, so the semaphore it
+        built never had a second waiter and every crawl was serial whatever
+        the hardware profile declared.
     respect_robots : bool
         Placeholder — not yet implemented.
     on_blocked : Callable[[str, str], None] | None
@@ -241,12 +246,22 @@ class Crawler:
         self._pause_event.set()
 
     async def crawl(self) -> AsyncGenerator[tuple[str, str], None]:
-        """Yield (url, html) for each successfully fetched page."""
-        queue: asyncio.Queue[tuple[str, int]] = asyncio.Queue()
-        for seed in self.seeds:
-            await queue.put((seed, 0))
+        """
+        Yield (url, html) for each successfully fetched page.
 
-        semaphore = asyncio.Semaphore(self.concurrency)
+        Up to `concurrency` fetches are in flight at once, and a page is
+        yielded as it arrives rather than in frontier order, so two runs of
+        the same scan can report the same pages in a different sequence
+        (ADR-0025).
+
+        Pausing stops new requests from being dispatched and lets the ones
+        already in flight finish; there is nothing useful to do with a
+        response that has already been paid for. Closing the generator -
+        which is what a consumer's `break` does - cancels whatever is still
+        outstanding.
+        """
+        frontier: deque[tuple[str, int]] = deque((seed, 0) for seed in self.seeds)
+        pending: set[asyncio.Task] = set()
         start_time = asyncio.get_event_loop().time()
 
         async with httpx.AsyncClient(
@@ -254,38 +269,75 @@ class Crawler:
             timeout=10.0,
             headers={"User-Agent": USER_AGENT},
         ) as client:
-            while not queue.empty() and self._pages_crawled < self.max_pages:
-                if (
-                    self.phase2_enabled
-                    and self.phase1_timeout is not None
-                    and not self._phase2_active
-                    and (asyncio.get_event_loop().time() - start_time) >= self.phase1_timeout
-                ):
-                    self._phase2_active = True
+            try:
+                while (frontier or pending) and self._pages_crawled < self.max_pages:
+                    await self._pause_event.wait()
+                    self._maybe_start_phase2(start_time)
 
-                url, depth = await queue.get()
-                # Block here if paused, resuming when event is set
-                await self._pause_event.wait()
-                if url in self._visited or depth > self.max_depth:
-                    continue
-                self._visited.add(url)
+                    while (
+                        frontier
+                        and len(pending) < self.concurrency
+                        and self._pages_crawled + len(pending) < self.max_pages
+                    ):
+                        url, depth = frontier.popleft()
+                        if not self._claim(url, depth):
+                            continue
+                        pending.add(asyncio.create_task(
+                            self._fetch_page(client, url, depth)
+                        ))
 
-                in_scope = scope.host_in_scope(url, self.target_domain)
-                if not self._phase2_active and not in_scope and url not in self.seeds:
-                    continue
+                    if not pending:
+                        break
 
-                async with semaphore:
-                    html = await self._fetch(client, url)
-                if html is None:
-                    continue
+                    done, pending = await asyncio.wait(
+                        pending, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    for task in done:
+                        url, depth, html = task.result()
+                        if html is None:
+                            continue
 
-                self._pages_crawled += 1
-                yield url, html
+                        self._pages_crawled += 1
+                        yield url, html
 
-                if depth < self.max_depth:
-                    for link in self._extract_links(html, url):
-                        if link not in self._visited:
-                            await queue.put((link, depth + 1))
+                        if depth < self.max_depth:
+                            for link in self._extract_links(html, url):
+                                if link not in self._visited:
+                                    frontier.append((link, depth + 1))
+                        if self._pages_crawled >= self.max_pages:
+                            break
+            finally:
+                for task in pending:
+                    task.cancel()
+
+    def _maybe_start_phase2(self, start_time: float) -> None:
+        """Widen the crawl past phase-1 scope once phase1_timeout has passed."""
+        if self._phase2_active or not self.phase2_enabled:
+            return
+        if self.phase1_timeout is None:
+            return
+        if (asyncio.get_event_loop().time() - start_time) >= self.phase1_timeout:
+            self._phase2_active = True
+
+    def _claim(self, url: str, depth: int) -> bool:
+        """
+        Mark a URL as visited and say whether it may be fetched now.
+
+        A URL phase 1 declines is still marked, so the same off-scope link
+        found on fifty pages is judged once rather than fifty times.
+        """
+        if url in self._visited or depth > self.max_depth:
+            return False
+        self._visited.add(url)
+        if self._phase2_active:
+            return True
+        return scope.host_in_scope(url, self.target_domain) or url in self.seeds
+
+    async def _fetch_page(
+        self, client: httpx.AsyncClient, url: str, depth: int
+    ) -> tuple[str, int, str | None]:
+        """Fetch one URL, carrying its depth back alongside the result."""
+        return url, depth, await self._fetch(client, url)
 
     @property
     def pages_blocked(self) -> int:
