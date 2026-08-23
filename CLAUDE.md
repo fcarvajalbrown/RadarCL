@@ -2,21 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Where this left off — read first (2026-08-05)
+## Where this left off — read first (2026-08-22)
 
-**v0.6.0 is released.** Tag, GitHub Release and installer all exist, and it
-was the first installer since v0.5.0, so the desktop app finally carries
-everything from v0.55 and v0.60 as well as ADR-0023's wall detection. The
-version-drift gap that sat here for two weeks is closed: all four places
-say `0.6.0`.
+**Scope now follows the target
+([ADR-0024](docs/adr/0024-scope-follows-the-target-domain.md)), uncommitted and
+unreleased.** `scan bhp.com` and `scan gecamin.com` used to crawl for minutes and
+report zero, because five separate hardcoded `.cl` checks each produced silence
+rather than a refusal. They are now one rule in `app/core/scope.py`. Name a
+target and its addresses are in scope whatever the TLD; name none and scope is
+`.cl`, exactly as before. This supersedes ADR-0018 on scope only — its
+`generated`-marker decision stands. **The CSV can now carry a foreign address**,
+which ADR-0018 prevented; that exposure was reopened knowingly.
 
-The last item landed from outside the roadmap. A scan of `aprimin.cl`, which
-publishes `aprimin@aprimin.cl`, reported zero and exited in three pages,
-because the site answers every request with 202 and a 169-byte SiteGround
-`sgcaptcha` stub. `202` is a success code, so the stub cleared
-`raise_for_status` and a wall was indistinguishable from a site with no
-addresses. `detect_wall` now judges a response by shape rather than vendor
-([ADR-0023](docs/adr/0023-a-wall-is-not-an-empty-site.md)).
+Landed alongside it: an address discarded for being off-target is now reported
+instead of vanishing (`on_filtered`, `describe_off_target`). A zero that means
+"forty addresses, all on other domains" and a zero that means "nothing to find"
+were the same output until now — the same inference ADR-0023 refused one layer
+lower.
+
+**Open and owed to Felipe: the crawl-depth conversation.** Numbers as they stand,
+none of them confirmed by him: 20 seeds, link depth fixed at 3 (no caller passes
+`max_depth`), page cap 1000/2000/5000 by hardware tier, and a **serial** crawler,
+so the cap is a ceiling never approached rather than a budget spent. The
+`Rápida / Profunda` selector in the GUI is *verification* depth (it flips SMTP on
+and off); there is no deep-crawl mode. Four defects found in the audit are still
+unfixed: the serial crawl, the unbounded subdomain probe in `_verify_subdomains`,
+`max_seeds` truncation discarding the scored contact pages before they are ever
+seeded, and fetch failures being swallowed with no `on_blocked` for non-2xx.
+
+**Never name an organisation as this project's owner, sponsor or audience.** See
+"What this is" below. It has come back three times.
 
 **Known, deliberate, and not to be rediscovered as bugs:**
 
@@ -52,10 +67,18 @@ are built.
 
 ## What this is
 
-RadarCL is a Windows desktop app (PySide6/Qt6) that discovers and verifies `.cl` email
-addresses from Chilean websites, for Instituto Igualdad's Área de Innovación Tecnológica.
-It crawls sites starting from auto-discovered seed URLs, extracts/generates candidate
-emails, and runs them through a multi-stage verifier.
+RadarCL is a Windows desktop app (PySide6/Qt6) by Felipe Carvajal Brown that discovers
+and verifies `.cl` email addresses from Chilean websites. It crawls sites starting from
+auto-discovered seed URLs, extracts/generates candidate emails, and runs them through a
+multi-stage verifier.
+
+**The credit is personal, never institutional.** No organisation is named as
+owner, sponsor or audience of this project, anywhere. This was fixed once in
+commit `d672c34` across the app window title, the Qt organization name, the
+installer publisher and the README, and it came back in `f8db520` through the
+PRD, and again on 2026-08-22 in an ADR draft that had read it here and taken it
+as current fact. If you are about to write who RadarCL is for, the answer is
+Felipe, and nothing else is to be inferred from an older document.
 
 ## Commands
 
@@ -267,12 +290,29 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   ([ADR-0013](docs/adr/0013-curated-source-stage-removed-after-measurement.md)). "More
   sources" is intuitive and was wrong here, so measure recovered addresses per page
   spent before adding one.
-- `app/core/crawler.py` — async `httpx` crawler. Phase 1 restricts link-following to
-  `.cl` domains; Phase 2 (optional, activated after `phase1_timeout`) follows external
-  links too, but the email filter (`is_cl_domain`) always stays `.cl`-only regardless of
-  phase. Supports pause/resume via an `asyncio.Event` shared with the worker.
-- `app/core/extractor.py` — pulls `.cl` emails from a page's HTML: `mailto:` links,
-  plain-text regex, and de-obfuscation of patterns like `user [at] domain.cl`.
+- `app/core/scope.py` — **the one rule for what is in scope**
+  ([ADR-0024](docs/adr/0024-scope-follows-the-target-domain.md)). Name a target
+  domain and an address at that domain is in scope whatever its TLD; name none
+  and scope is `.cl`. This replaced five independent hardcoded `.cl` checks that
+  each produced silence rather than a refusal, which is why `scan bhp.com`
+  crawled for minutes and reported zero. **Do not add a sixth**: extractor,
+  verifier, crawler, pipeline and seed_discoverer all read this module. `covers`
+  matches the domain and its subdomains but not a lookalike — `notnunoa.cl` is
+  not `nunoa.cl`, and the filter used to be a bare `endswith` that said it was.
+- `app/core/crawler.py` — async `httpx` crawler. Phase 1 follows links on `.cl`
+  hosts and on the target domain (`scope.host_in_scope`); Phase 2 (optional,
+  activated after `phase1_timeout`) follows anything. `.cl` stays crawlable even
+  with a `.com` target, so a Chilean page linked from it is still read; narrowing
+  results to the target is `pipeline`'s job, not the crawler's. Supports
+  pause/resume via an `asyncio.Event` shared with the worker.
+  **`concurrency` is currently a no-op** — `crawl()` awaits each `_fetch` inline
+  in one coroutine, so the semaphore never has more than one waiter and the
+  crawl is strictly serial. Known, unfixed, and the reason a scan takes minutes.
+- `app/core/extractor.py` — pulls in-scope emails from a page's HTML: `mailto:`
+  links, plain-text regex, and de-obfuscation of patterns like
+  `user [at] domain.cl`. Takes a `target` and matches `.cl` alongside it, so
+  `pipeline` can see and report the addresses it is about to discard rather than
+  folding them into a zero.
 - `app/core/pattern_generator.py` — for domains where emails aren't published directly,
   harvests likely person names (`Firstname Lastname` capitalisation heuristic, with a
   Chilean first-name set to resolve word order) and generates candidate addresses from a
@@ -284,7 +324,11 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   resolver timeout is not evidence an address is dead ([ADR-0009](docs/adr/0009-mx-resolution-failure-is-unknown.md)).
   The DoH leg exists because dnspython uses UDP/53, which some networks
   filter while leaving HTTPS working.
-- `app/core/verifier.py` — sequential pipeline per email: syntax regex → DNS MX lookup →
+- `app/core/verifier.py` — **`_SYNTAX_RE` judges syntax, not scope.** It used to
+  end in `\.cl$`, so a well-formed `.com` address was reported as
+  `Invalid email format` — a scope refusal wearing a syntax error's reason, and
+  the defect ADR-0018 recorded as why `.com` never worked end to end. Do not put
+  a TLD back in it. Sequential pipeline per email: syntax regex → DNS MX lookup →
   raw SMTP `RCPT TO` handshake (no email actually sent). Three stages, not four: a
   fourth third-party API stage was a placeholder no interface exposed and was removed
   rather than built, since the commercial APIs are 70-85% accurate on catch-all domains

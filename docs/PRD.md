@@ -33,12 +33,10 @@ with UNKNOWN as a first-class outcome per
 ## Primary audience
 
 External OSINT, civic-tech, and govtech developers building tools around
-Chilean (`.cl`) data. RadarCL's origin was Instituto Igualdad's Área de
-Innovación Tecnológica running its own campaigns — that origin story
-motivated the initial feature set, but as of the 0.2→1.0 roadmap decision
-it is not the design target going forward: features, docs, and packaging
-decisions should optimize for outside adoption and legibility, not just
-internal use.
+Chilean (`.cl`) data. The initial feature set was shaped by its author's own
+use, but as of the 0.2→1.0 roadmap decision that is not the design target
+going forward: features, docs, and packaging decisions should optimize for
+outside adoption and legibility, not just personal use.
 
 ## Non-goals
 
