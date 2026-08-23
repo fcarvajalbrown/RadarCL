@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QWidget, QVBoxLayout, QLabel, QLineEdit,
     QPushButton, QComboBox, QProgressBar,
     QCheckBox, QFrame, QSizePolicy, QMessageBox,
-    QTextEdit, QScrollArea
+    QTextEdit, QScrollArea, QSpinBox
 )
 from PySide6.QtCore import Signal, Qt, QThread
 from PySide6.QtGui import QFont, QIcon
@@ -215,6 +215,25 @@ class ControlPanel(QWidget):
             f"border-radius: 4px; padding: 3px 6px;"
         )
         layout.addWidget(hw_badge)
+
+        concurrency_row = QHBoxLayout()
+        concurrency_row.setSpacing(6)
+        concurrency_label = QLabel("Peticiones simultáneas")
+        concurrency_label.setStyleSheet("color: #666666; font-size: 10px;")
+        concurrency_row.addWidget(concurrency_label)
+
+        self._concurrency_input = QSpinBox()
+        self._concurrency_input.setRange(1, 16)
+        self._concurrency_input.setValue(self._hw.concurrency)
+        self._concurrency_input.setFixedHeight(24)
+        self._concurrency_input.setFixedWidth(56)
+        self._concurrency_input.setToolTip(
+            f"Páginas pedidas a la vez. El perfil {self._hw.tier} propone "
+            f"{self._hw.concurrency}; bájalo para exigir menos al sitio."
+        )
+        concurrency_row.addWidget(self._concurrency_input)
+        concurrency_row.addStretch()
+        layout.addLayout(concurrency_row)
 
         layout.addWidget(_divider())
 
@@ -591,7 +610,7 @@ class ControlPanel(QWidget):
             respect_robots=self._robots_check.isChecked(),
             pattern=self._get_pattern(),
             request_delay=self._hw.request_delay,
-            concurrency=self._hw.concurrency,
+            concurrency=self._concurrency_input.value(),
         )
 
         self._crawler.email_found.connect(self._on_email_found)
@@ -840,6 +859,7 @@ class ControlPanel(QWidget):
         self._pause_btn.setEnabled(running)
         self._stop_verify_btn.setEnabled(running)
         self._force_quit_btn.setEnabled(running)
+        self._concurrency_input.setEnabled(not running)
 
     def _reset_ui(self, keep_settings: bool) -> None:
         """
@@ -882,6 +902,7 @@ class ControlPanel(QWidget):
             self._phase2_check.setChecked(False)
             self._verify_combo.setCurrentIndex(1)
             self._robots_check.setChecked(False)
+            self._concurrency_input.setValue(self._hw.concurrency)
 
         # Notify main window to hide results table and reset splitter
         self.new_session_started.emit()
