@@ -20,9 +20,28 @@ def test_invalid_syntax_missing_at() -> None:
     assert result.syntax_ok is False
 
 
-def test_invalid_syntax_wrong_tld() -> None:
-    """Non-.cl address should fail syntax stage."""
-    result = verify("user@company.com", smtp_enabled=False)
+def test_syntax_stage_judges_syntax_not_scope() -> None:
+    """
+    A well-formed non-.cl address passes stage 1 (ADR-0024).
+
+    `_SYNTAX_RE` used to end in `\\.cl$`, so it reported a perfectly
+    well-formed address as "Invalid email format". That was a scope
+    refusal wearing a syntax error's reason, and ADR-0018 recorded it as
+    why `.com` support never worked. Scope now lives in `app.core.scope`
+    and is decided before an address reaches the verifier.
+
+    Asserted against the regex rather than through `verify`, which would
+    reach a live MX lookup for `company.com` and make an offline test
+    depend on the network.
+    """
+    assert verifier._SYNTAX_RE.match("user@company.com")
+    assert verifier._SYNTAX_RE.match("sarah.wilson@bhp.com")
+    assert verifier._SYNTAX_RE.match("contacto@nunoa.cl")
+
+
+def test_invalid_syntax_no_tld() -> None:
+    """A domain with no dot is still malformed."""
+    result = verify("user@localhost", smtp_enabled=False)
     assert result.status == VStatus.INVALID
     assert result.syntax_ok is False
 

@@ -96,7 +96,7 @@ class VerificationResult:
 
 
 _SYNTAX_RE = re.compile(
-    r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.cl$',
+    r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$',
     re.IGNORECASE
 )
 

@@ -14,6 +14,8 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import scope
+
 
 # Sent by every request RadarCL makes, crawling and seed discovery alike.
 # `portaltransparencia.cl` and `anid.cl` answer 403 to a bare tool token
@@ -165,9 +167,7 @@ def describe_walls(blocked: list[tuple[str, str]], pages_read: int) -> str:
 
 def is_cl_domain(url: str) -> bool:
     """Return True if the URL host ends with .cl."""
-    host = urlparse(url).netloc.lower().split(':')[0]
-    parts = host.split('.')
-    return len(parts) >= 2 and parts[-1] == 'cl'
+    return scope.host_in_scope(url)
 
 
 class Crawler:
@@ -178,8 +178,14 @@ class Crawler:
     ----------
     seeds : list[str]
         Starting URLs.
+    target_domain : str
+        Bare lowercase target domain. Phase 1 follows links on `.cl` hosts
+        and on this domain. Without it a `bhp.com` seed is fetched, all of
+        its links are discarded for being off-`.cl`, the frontier empties
+        and the crawl ends having read one page (ADR-0024).
     phase2_enabled : bool
-        If True, follow non-.cl links after phase1_timeout seconds.
+        If True, follow links outside that scope after phase1_timeout
+        seconds.
     phase1_timeout : float | None
         Seconds before Phase 2 activates. None = never.
     max_pages : int
@@ -200,6 +206,7 @@ class Crawler:
     def __init__(
         self,
         seeds: list[str],
+        target_domain: str = '',
         phase2_enabled: bool = False,
         phase1_timeout: float | None = None,
         max_pages: int = 5000,
@@ -210,6 +217,7 @@ class Crawler:
         on_blocked: Callable[[str, str], None] | None = None,
     ) -> None:
         self.seeds = seeds
+        self.target_domain = scope.normalise(target_domain)
         self.phase2_enabled = phase2_enabled
         self.phase1_timeout = phase1_timeout
         self.max_pages = max_pages
@@ -262,7 +270,8 @@ class Crawler:
                     continue
                 self._visited.add(url)
 
-                if not self._phase2_active and not is_cl_domain(url) and url not in self.seeds:
+                in_scope = scope.host_in_scope(url, self.target_domain)
+                if not self._phase2_active and not in_scope and url not in self.seeds:
                     continue
 
                 async with semaphore:

@@ -119,6 +119,88 @@ def test_crawl_and_extract_forwards_blocked_pages(monkeypatch) -> None:
     assert seen == [('https://www.aprimin.cl', 'SiteGround')]
 
 
+def test_crawl_and_extract_reports_off_target_addresses(monkeypatch) -> None:
+    """
+    An address dropped for being on another domain reaches the caller.
+
+    A scan that reads forty addresses and keeps none must not report the
+    same bare zero as a scan that read nothing.
+    """
+    html = (
+        '<a href="mailto:a@nunoa.cl">a</a>'
+        '<a href="mailto:b@otracosa.cl">b</a>'
+        '<a href="mailto:c@tercera.cl">c</a>'
+    )
+    _with_pages(monkeypatch, [("http://a.cl", html), ("http://b.cl", html)])
+    dropped: list[tuple[str, str]] = []
+
+    found = asyncio.run(_drain(pipeline.crawl_and_extract(
+        ["http://a.cl"],
+        target_domain="nunoa.cl",
+        request_delay=0,
+        on_filtered=lambda email, url: dropped.append((email, url)),
+    )))
+
+    assert [d.email for d in found] == ["a@nunoa.cl"]
+    assert sorted(dropped) == [
+        ("b@otracosa.cl", "http://a.cl"),
+        ("c@tercera.cl", "http://a.cl"),
+    ]
+
+
+def test_crawl_and_extract_reports_no_off_target_without_a_target(
+    monkeypatch,
+) -> None:
+    """With no target domain nothing is dropped, so nothing is reported."""
+    html = '<a href="mailto:b@otracosa.cl">b</a>'
+    _with_pages(monkeypatch, [("http://a.cl", html)])
+    dropped: list[tuple[str, str]] = []
+
+    found = asyncio.run(_drain(pipeline.crawl_and_extract(
+        ["http://a.cl"],
+        request_delay=0,
+        on_filtered=lambda email, url: dropped.append((email, url)),
+    )))
+
+    assert [d.email for d in found] == ["b@otracosa.cl"]
+    assert dropped == []
+
+
+def test_describe_off_target_is_silent_when_nothing_was_dropped() -> None:
+    """A clean run grows no caveat."""
+    assert pipeline.describe_off_target(0, 5, "nunoa.cl") == ""
+
+
+def test_describe_off_target_refuses_to_imply_an_empty_site() -> None:
+    """
+    Zero kept and some dropped is the case the whole change exists for.
+
+    The wording must say the addresses were read and rejected, never that
+    the site has none.
+    """
+    text = pipeline.describe_off_target(40, 0, "nunoa.cl")
+
+    assert "40" in text
+    assert "nunoa.cl" in text
+    assert "otro dominio" in text
+
+
+def test_describe_off_target_is_a_footnote_when_something_was_kept() -> None:
+    """With results in hand the dropped addresses are an aside, not a verdict."""
+    text = pipeline.describe_off_target(3, 7, "nunoa.cl")
+
+    assert "3" in text
+    assert "no significa" not in text
+
+
+def test_describe_off_target_says_one_address_in_the_singular() -> None:
+    """'Otras 1 direcciones' is the kind of thing a user notices."""
+    assert pipeline.describe_off_target(1, 7, "nunoa.cl").startswith(
+        "Otra direccion"
+    )
+    assert "una direccion" in pipeline.describe_off_target(1, 0, "nunoa.cl")
+
+
 def test_crawl_and_extract_honours_should_stop(monkeypatch) -> None:
     """should_stop halts the crawl even on pages yielding no addresses."""
     _with_pages(monkeypatch, [("http://a.cl", ""), ("http://b.cl", "")])
@@ -236,11 +318,13 @@ def test_verify_all_passes_smtp_flag_through(monkeypatch) -> None:
     assert captured["smtp_enabled"] is False
 
 
-def test_generated_candidates_are_held_to_cl_scope(monkeypatch) -> None:
+def test_generated_candidates_follow_the_target_domain(monkeypatch) -> None:
     """
-    The generated branch had no filter, so a non-.cl target invented
-    foreign addresses the verifier then rejected as "Invalid email
-    format" - a path that never worked end to end (ADR-0018).
+    A named non-.cl target generates candidates at that domain (ADR-0024).
+
+    ADR-0018 blocked this because `verifier._SYNTAX_RE` then called every
+    such address malformed, so the path produced what it could not verify.
+    That was a defect in the verifier, and it is fixed rather than avoided.
     """
     _with_pages(monkeypatch, [("http://a.cl", "<p>Jimmy Nunez</p>")])
 
@@ -249,7 +333,72 @@ def test_generated_candidates_are_held_to_cl_scope(monkeypatch) -> None:
         pattern="{first}.{last}", request_delay=0
     )))
 
-    assert found == []
+    assert [d.email for d in found] == ["jimmy.nunez@bhp.com"]
+    assert found[0].generated is True
+
+
+def test_scraped_addresses_follow_the_target_domain(monkeypatch) -> None:
+    """
+    A .com address on a page is extracted when the user named that domain.
+
+    The extractor regex ended in `\\.cl\\b`, so this could not be matched
+    at all and a bhp.com scan reported zero after minutes of crawling.
+    """
+    html = (
+        '<a href="mailto:sarah.wilson@bhp.com">sarah</a>'
+        '<a href="mailto:otro@ajeno.com">otro</a>'
+    )
+    _with_pages(monkeypatch, [("http://a.cl", html)])
+
+    found = asyncio.run(_drain(pipeline.crawl_and_extract(
+        ["http://a.cl"], target_domain="bhp.com", request_delay=0
+    )))
+
+    assert [d.email for d in found] == ["sarah.wilson@bhp.com"]
+
+
+def test_default_scope_is_still_cl_only(monkeypatch) -> None:
+    """With no target named nothing changes: .cl and nothing else."""
+    html = (
+        '<a href="mailto:uno@nunoa.cl">uno</a>'
+        '<a href="mailto:dos@bhp.com">dos</a>'
+    )
+    _with_pages(monkeypatch, [("http://a.cl", html)])
+
+    found = asyncio.run(_drain(
+        pipeline.crawl_and_extract(["http://a.cl"], request_delay=0)
+    ))
+
+    assert [d.email for d in found] == ["uno@nunoa.cl"]
+
+
+def test_target_domain_does_not_match_a_lookalike(monkeypatch) -> None:
+    """
+    `notnunoa.cl` is not `nunoa.cl`.
+
+    The filter was a bare `endswith`, which let a stranger's domain answer
+    for the target. Consolidating five scope checks into one made the loose
+    version untenable, since the same rule decides which hosts to crawl.
+    """
+    html = (
+        '<a href="mailto:uno@nunoa.cl">uno</a>'
+        '<a href="mailto:dos@notnunoa.cl">dos</a>'
+        '<a href="mailto:tres@correo.nunoa.cl">tres</a>'
+    )
+    _with_pages(monkeypatch, [("http://a.cl", html)])
+    dropped: list[str] = []
+
+    found = asyncio.run(_drain(pipeline.crawl_and_extract(
+        ["http://a.cl"],
+        target_domain="nunoa.cl",
+        request_delay=0,
+        on_filtered=lambda email, url: dropped.append(email),
+    )))
+
+    assert sorted(d.email for d in found) == [
+        "tres@correo.nunoa.cl", "uno@nunoa.cl",
+    ]
+    assert dropped == ["dos@notnunoa.cl"]
 
 
 def test_generated_candidates_still_work_for_cl(monkeypatch) -> None:

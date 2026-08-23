@@ -44,6 +44,7 @@ from urllib.parse import urljoin, urlparse, quote
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core import scope
 from app.core.crawler import USER_AGENT
 
 
@@ -684,7 +685,7 @@ async def _duckduckgo_seeds(
         URLs extracted from search results.
     """
     urls: list[str] = []
-    url_re = re.compile(r'https?://[a-zA-Z0-9.\-]+\.cl[^\s"<>]*')
+    url_re = scope.url_re(domain)
     queries = _DDG_QUERIES.get(
         entity_type, _DDG_QUERIES[EntityType.COMPANY]
     )

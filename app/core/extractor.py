@@ -22,16 +22,7 @@ the same split ADR-0016 draws for catch-all domains.
 import re
 from bs4 import BeautifulSoup, Tag
 
-
-_EMAIL_RE = re.compile(
-    r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.cl\b',
-    re.IGNORECASE
-)
-
-_OBFUSCATED_RE = re.compile(
-    r'[a-zA-Z0-9._%+\-]+\s*(?:\[at\]|\(at\)|\s+at\s+)\s*[a-zA-Z0-9.\-]+\.cl\b',
-    re.IGNORECASE
-)
+from app.core import scope
 
 # Inline styles that put content out of a reader's reach. Each of these is a
 # documented honeypot placement rather than a guess at what might hide
@@ -141,8 +132,10 @@ def _is_hidden(tag: Tag) -> bool:
     return bool(_HIDDEN_STYLE_RE.search(style)) or _same_colour_as_background(style)
 
 
-def _addresses_in(soup: BeautifulSoup | Tag) -> set[str]:
-    """Every .cl address reachable in this subtree, by all three routes."""
+def _addresses_in(soup: BeautifulSoup | Tag, target: str = '') -> set[str]:
+    """Every in-scope address reachable in this subtree, by all three routes."""
+    email_re = scope.email_re(target)
+    obfuscated_re = scope.obfuscated_re(target)
     found: set[str] = set()
 
     # `find_all` searches descendants only. When a hidden subtree *is* the
@@ -156,12 +149,12 @@ def _addresses_in(soup: BeautifulSoup | Tag) -> set[str]:
         href = tag['href']
         if href.lower().startswith('mailto:'):
             addr = href[7:].split('?')[0].strip().lower()
-            if _EMAIL_RE.match(addr):
+            if email_re.match(addr):
                 found.add(addr)
         elif 'email-protection#' in href.lower():
             # Cloudflare rewrote a mailto into a link to its own decoder.
             decoded = decode_cf_email(href.split('#', 1)[1])
-            if decoded and _EMAIL_RE.match(decoded.lower()):
+            if decoded and email_re.match(decoded.lower()):
                 found.add(decoded.lower())
 
     # The inline form: a span whose text Cloudflare's own script replaces in
@@ -171,29 +164,31 @@ def _addresses_in(soup: BeautifulSoup | Tag) -> set[str]:
         cf_spans.append(soup)
     for tag in cf_spans:
         decoded = decode_cf_email(str(tag['data-cfemail']))
-        if decoded and _EMAIL_RE.match(decoded.lower()):
+        if decoded and email_re.match(decoded.lower()):
             found.add(decoded.lower())
 
     text = soup.get_text(separator=' ')
-    for match in _EMAIL_RE.finditer(text):
+    for match in email_re.finditer(text):
         found.add(match.group().lower())
 
-    for match in _OBFUSCATED_RE.finditer(text):
+    for match in obfuscated_re.finditer(text):
         normalised = re.sub(
             r'\s*(?:\[at\]|\(at\)|\s+at\s+)\s*',
             '@',
             match.group(),
             flags=re.IGNORECASE
         ).lower()
-        if _EMAIL_RE.match(normalised):
+        if email_re.match(normalised):
             found.add(normalised)
 
     return found
 
 
-def extract_emails(html: str, source_url: str) -> list[dict]:
+def extract_emails(
+    html: str, source_url: str, target: str = ''
+) -> list[dict]:
     """
-    Extract .cl email addresses from an HTML page.
+    Extract in-scope email addresses from an HTML page.
 
     Parameters
     ----------
@@ -201,6 +196,12 @@ def extract_emails(html: str, source_url: str) -> list[dict]:
         Raw HTML content of the page.
     source_url : str
         URL the page was fetched from, stored with each result.
+    target : str
+        Bare lowercase target domain. Addresses at that domain are matched
+        whatever its TLD, alongside `.cl` (ADR-0024). Empty means `.cl`
+        only, which is what every scan did before. `.cl` stays matched with
+        a target set so `pipeline` can report what it discarded rather than
+        folding it into a zero.
 
     Returns
     -------
@@ -221,10 +222,10 @@ def extract_emails(html: str, source_url: str) -> list[dict]:
         if tag.parent is not None
     ]
 
-    visible = _addresses_in(soup)
+    visible = _addresses_in(soup, target)
     hidden: set[str] = set()
     for tree in hidden_trees:
-        hidden |= _addresses_in(tree)
+        hidden |= _addresses_in(tree, target)
 
     return (
         [{'email': e, 'source': source_url, 'hidden': False}

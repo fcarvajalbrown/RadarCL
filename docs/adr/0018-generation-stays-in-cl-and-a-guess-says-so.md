@@ -1,7 +1,9 @@
 # 0018 - Generation stays in `.cl`, and a guess says so
 
 ## Status
-Accepted. Narrows [0014](0014-country-is-never-inferred-from-a-com-address.md).
+Superseded by [0024](0024-scope-follows-the-target-domain.md) on scope; its
+second decision, that `generated` travels with the record, stands. Narrows
+[0014](0014-country-is-never-inferred-from-a-com-address.md).
 
 ## Date
 2026-07-25

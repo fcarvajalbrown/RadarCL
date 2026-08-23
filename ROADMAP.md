@@ -201,7 +201,8 @@ measurement, and why a stage that cannot be shown to contribute is removed
 rather than maintained).
 
 ### v0.50 — page evidence, and the `.com` question closed
-**Status:** Done
+**Status:** Done — but the heading is no longer true. See the reopening note
+at the end of this section.
 - [x] The filter change this item asked for does not ship, and the
       measurement that closed it does. Chilean `.com` sites yield 0.00-0.05
       addresses per page; `codelco.com`'s only two finds were `.cl`
@@ -238,6 +239,23 @@ rather than decides). Narrows
 [0003](docs/adr/0003-crawl-phase1-phase2-scope.md) rather than superseding
 it. Evidence and sample limits are in
 [docs/research/dotcom-attribution.md](docs/research/dotcom-attribution.md).
+
+**Reopened 2026-08-22, from outside the roadmap.** Felipe asked for `.com`
+back, naming `bhp.com` and `gecamin.com`. The measurement above still stands
+and is not disputed: adding `.com` to the *default* scope pays nothing. What
+this item got wrong is the framing — it treated `.com` as a category to admit
+or refuse, when the question is whose domain the user asked for.
+[ADR-0024](docs/adr/0024-scope-follows-the-target-domain.md) makes scope follow
+the named target whatever its TLD, and leaves the default `.cl`-only, so the
+measurement's conclusion is preserved rather than overturned. It supersedes
+[0018](docs/adr/0018-generation-stays-in-cl-and-a-guess-says-so.md) on scope,
+and reverses the fourth item above: the `.cl` filter on scraped addresses is no
+longer unconditional. Not released; no version bump yet.
+
+Landed with it, also unplanned: an address discarded for being off-target is
+reported rather than dropped in silence, so a zero meaning "addresses found,
+none on your domain" stops being indistinguishable from a zero meaning "nothing
+found" — the inference ADR-0023 refused one layer lower.
 
 ### v0.55 — Verification honesty
 **Status:** Done
