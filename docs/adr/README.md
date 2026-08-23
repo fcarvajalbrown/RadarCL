@@ -26,3 +26,4 @@
 | [0022](0022-a-parser-is-not-a-source-and-does-not-need-a-gate.md) | A parser is not a source, and does not need a gate | Accepted |
 | [0023](0023-a-wall-is-not-an-empty-site.md) | A wall is not an empty site | Accepted |
 | [0024](0024-scope-follows-the-target-domain.md) | Scope follows the target domain | Accepted |
+| [0025](0025-concurrency-is-real-and-the-user-sets-it.md) | Concurrency is real, and the user sets it | Accepted |
