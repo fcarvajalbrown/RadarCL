@@ -23,6 +23,7 @@ from PySide6.QtGui import QFont, QIcon
 
 from app.core import session
 from app.core.crawler import describe_walls
+from app.core.pipeline import describe_off_target
 from app.core.hw_profile import get_hw_profile
 from app.core.pattern_generator import COMMON_PATTERNS
 from app.core.seed_discoverer import discover_seeds
@@ -115,6 +116,8 @@ class ControlPanel(QWidget):
         ] = []
         self._discovered_seeds: list[str] = []
         self._blocked_pages: list[tuple[str, str]] = []
+        self._off_target: list[tuple[str, str]] = []
+        self._target_domain: str = ""
         self._pages_read: int = 0
         self._session_id: int | None = None
         self._is_running: bool = False
@@ -564,6 +567,10 @@ class ControlPanel(QWidget):
         self._seed_error.hide()
         self._collected_emails = []
         self._blocked_pages = []
+        self._off_target = []
+        self._target_domain = (
+            str(self._domain_input.text()).strip().lstrip('@').lower()
+        )
         self._pages_read = 0
         self._force_quit = False
         self._is_running = True
@@ -592,6 +599,7 @@ class ControlPanel(QWidget):
         self._crawler.crawl_finished.connect(self._on_crawl_finished)
         self._crawler.page_crawled.connect(self._on_page_crawled)
         self._crawler.page_blocked.connect(self._on_page_blocked)
+        self._crawler.email_filtered.connect(self._on_email_filtered)
         self._crawler.start()
 
     # ── Slot: Pause / Resume
@@ -752,11 +760,10 @@ class ControlPanel(QWidget):
         self._is_running = False
         self._set_running_state(False)
         if not self._force_quit:
-            walls = describe_walls(self._blocked_pages, self._pages_read)
             self._status_label.setText(
                 f"Rastreo completo. {len(self._collected_emails)} correos "
                 f"encontrados.\n"
-                + (f"{walls}\n" if walls else "")
+                + self._caveats()
                 + "Pulsa Detener y verificar para revisarlos."
             )
             # Re-enable Stop & Verify so user can still verify
@@ -776,6 +783,28 @@ class ControlPanel(QWidget):
         """
         self._blocked_pages.append((url, vendor))
 
+    def _on_email_filtered(self, email: str, url: str) -> None:
+        """
+        Record a .cl address discarded for not being on the target domain.
+
+        A zero that means "forty addresses, all on other domains" and a
+        zero that means "nothing to find" are different answers, and until
+        now the GUI showed the same empty CSV for both.
+        """
+        self._off_target.append((email, url))
+
+    def _caveats(self) -> str:
+        """Return the wall and off-domain notes, blank lines and all."""
+        notes = [
+            describe_walls(self._blocked_pages, self._pages_read),
+            describe_off_target(
+                len(self._off_target),
+                len(self._collected_emails),
+                self._target_domain,
+            ),
+        ]
+        return "".join(f"{note}\n" for note in notes if note)
+
     def _on_verify_progress(self, done: int, total: int) -> None:
         """Update progress bar during verification."""
         self._progress.setValue(done)
@@ -788,10 +817,9 @@ class ControlPanel(QWidget):
             session.update_email_status(self._session_id, r['email'], r['status'])
         valid = sum(1 for r in results if r.get('status') == 'valid')
         session.update_session_totals(self._session_id, len(results), valid)
-        walls = describe_walls(self._blocked_pages, self._pages_read)
         self._status_label.setText(
             f"Listo. {valid} correos válidos encontrados.\n"
-            + (f"{walls}\n" if walls else "")
+            + self._caveats()
             + "Los resultados se guardaron en tu Escritorio."
         )
         self._new_session_btn.setVisible(True)

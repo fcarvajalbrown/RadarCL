@@ -10,6 +10,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import AsyncGenerator, Callable, Iterator, Sequence
 
+from app.core import scope
 from app.core.crawler import Crawler
 from app.core.extractor import extract_emails
 from app.core.pattern_generator import generate_candidates
@@ -25,6 +26,58 @@ _STATUS_NAMES: dict[VStatus, str] = {
     VStatus.UNKNOWN: 'unknown',
     VStatus.CATCH_ALL: 'catch_all',
 }
+
+
+def describe_off_target(off_target: int, kept: int, target_domain: str) -> str:
+    """
+    Phrase what the domain filter threw away, in the reader's terms.
+
+    Lives beside the filter that discards them so the CLI and the GUI say
+    the same thing, the way `describe_walls` does for unreadable pages.
+
+    Parameters
+    ----------
+    off_target : int
+        Distinct `.cl` addresses the crawl read and the target filter
+        discarded.
+    kept : int
+        Addresses that survived the filter. Zero changes the claim
+        entirely: the scan read addresses and reports none, so a bare zero
+        would assert an absence nobody observed - the inference ADR-0023
+        refuses one layer lower.
+    target_domain : str
+        Domain the filter demanded, bare and without '@'.
+
+    Returns
+    -------
+    str
+        Empty when nothing was discarded, so a clean run grows no caveat.
+    """
+    if off_target < 1:
+        return ''
+
+    if kept:
+        if off_target == 1:
+            return (
+                f"Otra direccion .cl quedo fuera por no pertenecer a "
+                f"{target_domain}."
+            )
+        return (
+            f"Otras {off_target} direcciones .cl quedaron fuera por no "
+            f"pertenecer a {target_domain}."
+        )
+
+    if off_target == 1:
+        return (
+            f"Se leyo una direccion .cl y no pertenece a {target_domain}. "
+            f"El resultado no significa que el sitio no publique correos, "
+            f"sino que el que publica esta en otro dominio."
+        )
+    return (
+        f"Se leyeron {off_target} direcciones .cl y ninguna pertenece a "
+        f"{target_domain}. El resultado no significa que el sitio no "
+        f"publique correos, sino que los que publica estan en otro dominio."
+    )
 
 
 @dataclass
@@ -72,6 +125,7 @@ async def crawl_and_extract(
     pause_event: asyncio.Event | None = None,
     on_page: Callable[[str, int], None] | None = None,
     on_blocked: Callable[[str, str], None] | None = None,
+    on_filtered: Callable[[str, str], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
 ) -> AsyncGenerator[Discovery, None]:
     """
@@ -104,6 +158,15 @@ async def crawl_and_extract(
         unrecognised. A consumer that ignores this reports a count of
         addresses as if it were a count of addresses that exist, which is
         the inference ADR-0023 forbids.
+    on_filtered : Callable[[str, str], None] | None
+        Called with (email, source_url) the first time a `.cl` address is
+        read off a page and then discarded for not belonging to
+        `target_domain`. Deduplicated across the crawl, like the yielded
+        Discoveries. Without it a scan that read two hundred pages and
+        harvested forty addresses on other domains reports a bare zero,
+        indistinguishable from a scan that read nothing - ADR-0013 measured
+        451 pages yielding 97 `.cl` addresses and none on any target, so
+        this is the common case rather than the corner one.
     should_stop : Callable[[], bool] | None
         Polled once per page. Returning True ends the crawl. This is
         page-granular on purpose: a consumer that could only stop on a
@@ -116,11 +179,13 @@ async def crawl_and_extract(
         Deduplicated across the whole crawl, scraped addresses first per
         page, then pattern-generated candidates.
     """
-    target = target_domain.lower().lstrip('@') if target_domain else None
+    target = scope.normalise(target_domain)
     seen: set[str] = set()
+    off_target: set[str] = set()
 
     crawler = Crawler(
         seeds=seeds,
+        target_domain=target,
         phase2_enabled=phase2_enabled,
         phase1_timeout=phase1_timeout,
         max_pages=max_pages,
@@ -145,9 +210,13 @@ async def crawl_and_extract(
         # answer meaning "no evidence found".
         page_evidence: tuple[str, ...] | None = None
 
-        for record in extract_emails(html, url):
+        for record in extract_emails(html, url, target):
             email = record['email']
-            if target and not email.endswith(target):
+            if target and not scope.in_scope(email, target):
+                if email not in off_target:
+                    off_target.add(email)
+                    if on_filtered is not None:
+                        on_filtered(email, url)
                 continue
             if email not in seen:
                 seen.add(email)
@@ -165,7 +234,7 @@ async def crawl_and_extract(
         # rejected as "Invalid email format" - a capability that never
         # worked end to end (ADR-0018). Where a company has Chilean staff
         # it usually has a `.cl` mail domain to target instead.
-        if pattern and target and target.endswith('.cl'):
+        if pattern and target:
             for candidate in generate_candidates(html, pattern, target):
                 if candidate not in seen:
                     seen.add(candidate)

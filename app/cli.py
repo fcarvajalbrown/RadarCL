@@ -21,7 +21,9 @@ from app import __version__
 from app.core.crawler import describe_walls
 from app.core.exporter import export, infer_format
 from app.core.hw_profile import get_hw_profile
-from app.core.pipeline import Discovery, crawl_and_extract, verify_all
+from app.core.pipeline import (
+    Discovery, crawl_and_extract, describe_off_target, verify_all,
+)
 from app.core.seed_discoverer import discover_seeds
 from app.core.session import new_session, save_email, update_session_totals
 
@@ -356,6 +358,7 @@ async def _crawl_into(
     sink: list[Discovery],
     blocked: list[tuple[str, str]],
     pages: list[str],
+    off_target: list[tuple[str, str]],
     seeds: list[str],
     domain: str,
     args: argparse.Namespace,
@@ -366,7 +369,7 @@ async def _crawl_into(
 
     Results accumulate in caller-owned lists rather than being returned,
     so a Ctrl+C part-way through still leaves the caller holding everything
-    found up to that point, walls included.
+    found up to that point, walls and off-target addresses included.
     """
     def on_page(url: str, count: int) -> None:
         pages.append(url)
@@ -375,6 +378,10 @@ async def _crawl_into(
     def on_blocked(url: str, vendor: str) -> None:
         blocked.append((url, vendor))
         log(f"[bloqueado] {url}{f' - {vendor}' if vendor else ''}", args.quiet)
+
+    def on_filtered(email: str, url: str) -> None:
+        off_target.append((email, url))
+        log(f"[fuera de dominio] {email}", args.quiet)
 
     async for discovery in crawl_and_extract(
         seeds,
@@ -389,6 +396,7 @@ async def _crawl_into(
         concurrency=args.concurrency or profile.concurrency,
         on_page=on_page,
         on_blocked=on_blocked,
+        on_filtered=on_filtered,
     ):
         sink.append(discovery)
 
@@ -436,10 +444,12 @@ def cmd_scan(args: argparse.Namespace) -> int:
     discoveries: list[Discovery] = []
     blocked: list[tuple[str, str]] = []
     pages: list[str] = []
+    off_target: list[tuple[str, str]] = []
     interrupted = False
     try:
         asyncio.run(_crawl_into(
-            discoveries, blocked, pages, seeds, domain, args, profile
+            discoveries, blocked, pages, off_target, seeds, domain,
+            args, profile,
         ))
     except KeyboardInterrupt:
         interrupted = True
@@ -453,6 +463,12 @@ def cmd_scan(args: argparse.Namespace) -> int:
     walls = describe_walls(blocked, len(pages))
     if walls:
         log(walls, args.quiet)
+
+    off_domain = describe_off_target(
+        len(off_target), len(discoveries), domain
+    )
+    if off_domain:
+        log(off_domain, args.quiet)
 
     pairs = [(d.email, d.source_url, d.evidence, d.generated, d.hidden)
              for d in discoveries]

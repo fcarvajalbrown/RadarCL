@@ -39,6 +39,12 @@ class CrawlerWorker(QThread):
         Vendor is '' when the wall is unrecognised. Without this the GUI
         would auto-export an empty CSV to the Desktop and say nothing about
         why it is empty (ADR-0023).
+    email_filtered : Signal(str, str)
+        Emitted as (email, source_url) for each distinct .cl address read
+        off a page and then discarded for not belonging to the target
+        domain. Without it a scan that harvested forty addresses on other
+        domains hands the user an empty CSV and a count of zero, which
+        reads as "the site publishes no correos".
     crawl_finished : Signal()
         Emitted when the crawl completes or is stopped.
     """
@@ -48,6 +54,7 @@ class CrawlerWorker(QThread):
     debug_message: Signal = Signal(str)
     page_crawled: Signal = Signal(int)
     page_blocked: Signal = Signal(str, str)
+    email_filtered: Signal = Signal(str, str)
     crawl_finished: Signal = Signal()
 
     def __init__(
@@ -133,6 +140,10 @@ class CrawlerWorker(QThread):
             self.debug_message.emit(f"[bloqueado] {url}{suffix}")
             self.page_blocked.emit(url, vendor)
 
+        def on_filtered(email: str, url: str) -> None:
+            self.debug_message.emit(f"[fuera de dominio] {email}")
+            self.email_filtered.emit(email, url)
+
         async for discovery in crawl_and_extract(
             self._seeds,
             target_domain=self._target,
@@ -146,6 +157,7 @@ class CrawlerWorker(QThread):
             pause_event=self._pause_event,
             on_page=on_page,
             on_blocked=on_blocked,
+            on_filtered=on_filtered,
             should_stop=lambda: self._stop_flag,
         ):
             if discovery.generated:
