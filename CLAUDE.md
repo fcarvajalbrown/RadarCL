@@ -2,33 +2,55 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Where this left off — read first (2026-08-22)
+## Where this left off — read first (2026-08-23)
 
-**Scope now follows the target
-([ADR-0024](docs/adr/0024-scope-follows-the-target-domain.md)), uncommitted and
-unreleased.** `scan bhp.com` and `scan gecamin.com` used to crawl for minutes and
-report zero, because five separate hardcoded `.cl` checks each produced silence
-rather than a refusal. They are now one rule in `app/core/scope.py`. Name a
-target and its addresses are in scope whatever the TLD; name none and scope is
-`.cl`, exactly as before. This supersedes ADR-0018 on scope only — its
-`generated`-marker decision stands. **The CSV can now carry a foreign address**,
-which ADR-0018 prevented; that exposure was reopened knowingly.
+**ADR-0024 was measured against real sites, and it works.** Three scans on
+2026-08-23, all `--max-seeds 10 --max-pages 40 --no-smtp`, high tier:
 
-Landed alongside it: an address discarded for being off-target is now reported
-instead of vanishing (`on_filtered`, `describe_off_target`). A zero that means
-"forty addresses, all on other domains" and a zero that means "nothing to find"
-were the same output until now — the same inference ADR-0023 refused one layer
-lower.
+| Target | Pages read | Blocked | Kept | Off-target |
+|---|---|---|---|---|
+| `gecamin.com` | 40, cap reached | 1 | **4** at `@gecamin.com` | 0 |
+| `nunoa.cl` | 40, cap reached | 1 | 22 | 2, and reported |
+| `bhp.com` | 17 | 4 | 0 | 0 |
 
-**Open and owed to Felipe: the crawl-depth conversation.** Numbers as they stand,
-none of them confirmed by him: 20 seeds, link depth fixed at 3 (no caller passes
-`max_depth`), page cap 1000/2000/5000 by hardware tier, and a **serial** crawler,
-so the cap is a ceiling never approached rather than a budget spent. The
-`Rápida / Profunda` selector in the GUI is *verification* depth (it flips SMTP on
-and off); there is no deep-crawl mode. Four defects found in the audit are still
-unfixed: the serial crawl, the unbounded subdomain probe in `_verify_subdomains`,
-`max_seeds` truncation discarding the scored contact pages before they are ever
-seeded, and fetch failures being swallowed with no `on_blocked` for non-2xx.
+Gecamin is the ADR-0024 result: before it, a `.com` target could only return
+zero, because no pattern in the extractor could match the address. Also settled,
+since ADR-0024 said nobody had checked: **`gecamin.cl` exists**, MX
+`gecamin-cl.mail.protection.outlook.com`, same Microsoft 365 tenant as the
+`.com`. Nuñoa's zero from the original complaint **did not reproduce** and there
+is no log of that run, so nothing here explains it.
+
+**`bhp.com` does not refuse the crawler outright, which is what ADR-0018
+recorded.** Seeds 1-3 are `www.bhp.com`, `bhp.com`, `xplor.bhp.com` and none of
+them appears in the crawl log. `www.bhp.com` answers **403 from AkamaiGHost**,
+`_fetch` swallows it, `on_blocked` never fires, and the crawl spends its whole
+budget on the SAP dev and QA subdomains Certificate Transparency happened to
+list. That is defect 4 caught in the act.
+
+**`detect_wall` fires but names no vendor** on the four `mobile-*.bhp.com` URLs:
+200, a 927-byte JavaScript-only shell, `server: cloudflare` but no
+`cf-mitigated` header and no body signature, so `_wall_vendor` returns `''` and
+the summary line carries no parentheses. Correctly classed as unreadable; it is
+not actually an anti-bot challenge, which the Spanish wording implies.
+
+**The crawl-depth conversation happened.** Felipe decided
+[ADR-0025](docs/adr/0025-concurrency-is-real-and-the-user-sets-it.md): the
+serial crawl is fixed, tier defaults 2/3/6 stay, **page caps stay untouched
+until a parallel crawl has been measured**, and the GUI got a concurrency
+spinbox beside the tier badge. Same three domains after: gecamin 30s → 15s,
+nunoa 78s → 27s, identical results. Both totals include seed discovery and DNS
+verification, which did not change.
+
+Still true and still his to decide: 20 seeds, link depth fixed at 3 (no caller
+passes `max_depth`, no setting anywhere), page cap 1000/2000/5000 by tier. The
+`Rápida / Profunda` selector in the GUI is *verification* depth (it flips SMTP
+on and off); there is no deep-crawl mode.
+
+**Three audit defects remain unfixed**, each needing its own ADR: the unbounded
+subdomain probe in `_verify_subdomains`, `max_seeds` truncation discarding the
+scored contact pages before they are ever seeded, and fetch failures being
+swallowed with no `on_blocked` for a non-2xx. The last has evidence behind it
+now (the 403 above) and is the one to take first.
 
 **Never name an organisation as this project's owner, sponsor or audience.** See
 "What this is" below. It has come back three times.
@@ -305,9 +327,16 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   with a `.com` target, so a Chilean page linked from it is still read; narrowing
   results to the target is `pipeline`'s job, not the crawler's. Supports
   pause/resume via an `asyncio.Event` shared with the worker.
-  **`concurrency` is currently a no-op** — `crawl()` awaits each `_fetch` inline
-  in one coroutine, so the semaphore never has more than one waiter and the
-  crawl is strictly serial. Known, unfixed, and the reason a scan takes minutes.
+  **`concurrency` is real since
+  [ADR-0025](docs/adr/0025-concurrency-is-real-and-the-user-sets-it.md)** —
+  `crawl()` keeps a frontier deque and a set of in-flight tasks, dispatching up
+  to `concurrency` fetches and yielding each page as it arrives, so page order
+  is no longer the frontier's. Until then it awaited each `_fetch` inline and
+  the semaphore never had a second waiter, which is why every crawl was serial
+  whatever the hardware profile declared. The page cap is checked before
+  dispatch, so a cap of 2 with 6 seeds costs 2 requests. Pause holds dispatch
+  and lets in-flight requests finish; closing the generator, which is what
+  `should_stop` does one layer up, cancels what is outstanding.
 - `app/core/extractor.py` — pulls in-scope emails from a page's HTML: `mailto:`
   links, plain-text regex, and de-obfuscation of patterns like
   `user [at] domain.cl`. Takes a `target` and matches `.cl` alongside it, so
