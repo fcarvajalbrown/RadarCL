@@ -27,3 +27,4 @@
 | [0023](0023-a-wall-is-not-an-empty-site.md) | A wall is not an empty site | Accepted |
 | [0024](0024-scope-follows-the-target-domain.md) | Scope follows the target domain | Accepted |
 | [0025](0025-concurrency-is-real-and-the-user-sets-it.md) | Concurrency is real, and the user sets it | Accepted |
+| [0026](0026-a-source-that-could-not-be-reached-says-so.md) | A source that could not be reached says so | Accepted |
