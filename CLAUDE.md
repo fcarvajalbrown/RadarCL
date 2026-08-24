@@ -2,7 +2,71 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Where this left off — read first (2026-08-23)
+## Where this left off — read first (2026-08-24)
+
+**Two ADRs landed and shipped since v0.6.0, and a third thing is parked.**
+
+[ADR-0025](docs/adr/0025-concurrency-is-real-and-the-user-sets-it.md):
+`Crawler.crawl()` was strictly serial, so the 2/3/6 the hardware profile
+declares described nothing. It now dispatches concurrently, the page cap is
+checked before dispatch, and the GUI has a `Peticiones simultáneas` spinbox
+beside the tier badge. Same domains before and after: gecamin 30s → 15s, nunoa
+78s → 27s, identical results.
+
+[ADR-0026](docs/adr/0026-a-source-that-could-not-be-reached-says-so.md):
+`discover_seeds` caught `CTUnavailable`, continued on the bare domain and told
+nobody. It now reports through `on_source_unavailable`, phrased once in
+`describe_ct_unavailable()`. The evidence is `uchile.cl` run twice minutes
+apart: **20 seeds either way, sharing 2** — one list 18 subdomain roots, the
+other 18 contact pages, both printing `20 semillas encontradas`. The semantic
+stage backfills the empty slots, so even the count matched.
+
+**A release is due.** v0.6.0 shipped before ADR-0024. Since then: scope follows
+the target, off-domain reporting, real concurrency plus its GUI control, and
+unreachable-source reporting. By this file's own rule that is a 0.1 bump, which
+means an installer and release notes.
+
+### The truncation study is parked, blocked on crt.sh
+
+The `max_seeds` truncation defect is now a pre-registered measurement:
+[docs/research/seed-truncation-prevalence.md](docs/research/seed-truncation-prevalence.md).
+**Do not redo any of it** — the frames, the draw, the seed `20260823`, the
+eligibility rules and Felipe's decision thresholds are all committed. Run 1 is
+recorded as void, deliberately, because CT was unavailable for 693 of 706 units
+and the clean 0% it produced was an artefact.
+
+What blocks run 2: **crt.sh has answered 502 then 404 for over a day**, and
+CertSpotter allows **10 full-domain queries an hour, measured** (10 × 200 then
+5 × 429). A free API key changes nothing — `include_subdomains=true` is a
+full-domain query and the 100/hour allowance is for single-hostname queries.
+Felipe's key is in `.env` (gitignored) under `CertSpotter`; **do not send him to
+get another one.** At 10/hour the 706 units need about 71 hours, so the study
+waits for crt.sh rather than grinding.
+
+Two things learned along the way that the study will want:
+
+- **`uchile.cl` has 77 live roots**, so it fires the truncation condition, and
+  its CT-enabled seed list contains no contact page at all while its CT-less one
+  is almost all contact pages. Whether that costs addresses is exactly what the
+  A/B arm is for. n=1 proves nothing.
+- **A CT outage masks truncation entirely** — roots collapse to 2, so nothing
+  can ever fire. Run 1 could not have measured the thing it was measuring.
+- **`_verify_subdomains` probed 90 names in 8.4 seconds.** The unbounded probe
+  is far milder than the audit implied. Reassess whether it is a defect before
+  spending an ADR on it.
+
+### Still open
+
+**The 403 defect is the one to take next**, and the only original defect left
+with hard evidence and no blocker: `_fetch` swallows every non-2xx, so
+`on_blocked` never fires and a refused seed vanishes. See `bhp.com` below.
+
+Still Felipe's to decide, untouched: 20 seeds, link depth fixed at 3 (no caller
+passes `max_depth`, no setting anywhere), page cap 1000/2000/5000 by tier. The
+`Rápida / Profunda` selector in the GUI is *verification* depth (it flips SMTP
+on and off); there is no deep-crawl mode.
+
+### The 2026-08-23 measurements, still current
 
 **ADR-0024 was measured against real sites, and it works.** Three scans on
 2026-08-23, all `--max-seeds 10 --max-pages 40 --no-smtp`, high tier:
@@ -33,24 +97,8 @@ list. That is defect 4 caught in the act.
 the summary line carries no parentheses. Correctly classed as unreadable; it is
 not actually an anti-bot challenge, which the Spanish wording implies.
 
-**The crawl-depth conversation happened.** Felipe decided
-[ADR-0025](docs/adr/0025-concurrency-is-real-and-the-user-sets-it.md): the
-serial crawl is fixed, tier defaults 2/3/6 stay, **page caps stay untouched
-until a parallel crawl has been measured**, and the GUI got a concurrency
-spinbox beside the tier badge. Same three domains after: gecamin 30s → 15s,
-nunoa 78s → 27s, identical results. Both totals include seed discovery and DNS
-verification, which did not change.
-
-Still true and still his to decide: 20 seeds, link depth fixed at 3 (no caller
-passes `max_depth`, no setting anywhere), page cap 1000/2000/5000 by tier. The
-`Rápida / Profunda` selector in the GUI is *verification* depth (it flips SMTP
-on and off); there is no deep-crawl mode.
-
-**Three audit defects remain unfixed**, each needing its own ADR: the unbounded
-subdomain probe in `_verify_subdomains`, `max_seeds` truncation discarding the
-scored contact pages before they are ever seeded, and fetch failures being
-swallowed with no `on_blocked` for a non-2xx. The last has evidence behind it
-now (the 403 above) and is the one to take first.
+**Page caps stay untouched until a parallel crawl has been measured.** ADR-0025
+says so explicitly; do not re-derive them from the old serial timings.
 
 **Never name an organisation as this project's owner, sponsor or audience.** See
 "What this is" below. It has come back three times.
@@ -302,7 +350,15 @@ Qt signals for the GUI thread. `app/ui/` consumes only worker signals, never cal
   the first *non-empty* result, since a source answering with no records has answered.
   Only an all-sources failure raises `CTUnavailable`, which `discover_seeds` catches
   ([ADR-0011](docs/adr/0011-ct-fallback-and-source-hygiene.md)) — the fallback lives
-  inside stage 1 and is not a new stage. **A curated-source stage was removed in v0.4.0
+  inside stage 1 and is not a new stage. **It catches and now also reports**, via
+  `on_source_unavailable(stage, reason)` and the shared wording in
+  `describe_ct_unavailable()`
+  ([ADR-0026](docs/adr/0026-a-source-that-could-not-be-reached-says-so.md)):
+  the seed count is identical whether or not stage 1 ran, because stage 3
+  backfills the empty slots, so silence made a scan of the bare domain
+  indistinguishable from a scan of a domain with no subdomains. A source that
+  answered with *no records* is still silent — that is ADR-0011's distinction
+  and the load-bearing one. **A curated-source stage was removed in v0.4.0
   and should not be reintroduced without measuring it first**: it seeded a hardcoded list
   of Chilean institutional sites, and its link scoring never fired because no
   institutional homepage links to a target by URL. Crawling all twelve sources for 451
