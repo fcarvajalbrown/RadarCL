@@ -201,6 +201,45 @@ recovers zero additional addresses across every firing domain, that arguably
 overrides both conditions above. It is written down as an open question rather
 than applied, because the decision is Felipe's and he has not made it.
 
+## Run 1, 2026-08-23: void
+
+The first run measured all 706 units and produced nothing usable. It is kept
+here because a pre-registered study that quietly re-runs after a failure is no
+longer pre-registered.
+
+**Certificate Transparency was unavailable for 389 of 400 units in frame A and
+304 of 306 in frame B.** `_ct_subdomains` raised `CTUnavailable` on 97% of the
+sample, so `live_roots` collapsed to the bare domain and its `www` - a median
+of 2 across both frames, against a firing threshold of 20. The headline result,
+0 firing domains in frame A, is a fact about a dead data source and not about
+seed truncation.
+
+The cause was this study's own volume. Checked immediately afterwards:
+
+| Source | Response |
+|---|---|
+| `crt.sh` | 502 Bad Gateway |
+| `api.certspotter.com` | 429 `rate_limited`, per-day quota for unauthenticated use |
+
+The pilot retrieved 125 certificate names for `bhp.com` earlier the same day, so
+CT was answering before the run and not after it. 706 domains in one pass, each
+querying crt.sh and falling through to CertSpotter, exhausted the daily
+allowance.
+
+Two things this run did establish, neither of them the question asked:
+
+- **Recording `ct_available` per unit is what caught it.** Without that field
+  the run would have reported a clean 0% with a tight interval, and the number
+  would have looked like an answer.
+- **A scan whose CT lookup fails says nothing about it.** `discover_seeds`
+  catches `CTUnavailable` and continues on the bare domain
+  ([ADR-0011](../adr/0011-ct-fallback-and-source-hygiene.md)), and no message
+  reaches the user. That is the shape ADR-0023 refused for bot walls, in the
+  seed stage, and it is a separate defect from the four already listed.
+
+Run 2 needs a pacing and caching strategy, and possibly an authenticated
+CertSpotter key. Neither is decided here.
+
 ## What this does not decide
 
 Whether to reserve slots is one question. How many to reserve is another, and
