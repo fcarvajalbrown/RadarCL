@@ -21,48 +21,47 @@ apart: **20 seeds either way, sharing 2** — one list 18 subdomain roots, the
 other 18 contact pages, both printing `20 semillas encontradas`. The semantic
 stage backfills the empty slots, so even the count matched.
 
-**A release is due.** v0.6.0 shipped before ADR-0024. Since then: scope follows
-the target, off-domain reporting, real concurrency plus its GUI control, and
-unreachable-source reporting. By this file's own rule that is a 0.1 bump, which
-means an installer and release notes.
+**Nothing is released.** v0.6.0 shipped before ADR-0024. Landed since: scope
+follows the target, off-domain reporting, real concurrency plus its GUI control,
+and unreachable-source reporting. By the release rule below that is a 0.1 bump,
+and it has not been cut.
 
 ### The truncation study is parked, blocked on crt.sh
 
-The `max_seeds` truncation defect is now a pre-registered measurement:
+The `max_seeds` truncation defect is a pre-registered measurement:
 [docs/research/seed-truncation-prevalence.md](docs/research/seed-truncation-prevalence.md).
-**Do not redo any of it** — the frames, the draw, the seed `20260823`, the
-eligibility rules and Felipe's decision thresholds are all committed. Run 1 is
-recorded as void, deliberately, because CT was unavailable for 693 of 706 units
-and the clean 0% it produced was an artefact.
+The frames, the draw, the seed `20260823`, the eligibility rules and Felipe's
+decision thresholds are committed there. Run 1 is recorded as void, deliberately,
+because CT was unavailable for 693 of 706 units and the clean 0% it produced was
+an artefact.
 
 What blocks run 2: **crt.sh has answered 502 then 404 for over a day**, and
 CertSpotter allows **10 full-domain queries an hour, measured** (10 × 200 then
-5 × 429). A free API key changes nothing — `include_subdomains=true` is a
-full-domain query and the 100/hour allowance is for single-hostname queries.
-Felipe's key is in `.env` (gitignored) under `CertSpotter`; **do not send him to
-get another one.** At 10/hour the 706 units need about 71 hours, so the study
-waits for crt.sh rather than grinding.
+5 × 429). A free API key does not raise that — `include_subdomains=true` is a
+full-domain query and the 100/hour allowance is for single-hostname queries. A
+key is already in `.env` (gitignored) under `CertSpotter`. At 10/hour the 706
+units need about 71 hours; Felipe's decision on 2026-08-24 was to wait for
+crt.sh rather than grind at the capped source.
 
-Two things learned along the way that the study will want:
+Three findings from the same day, all relevant to that study:
 
 - **`uchile.cl` has 77 live roots**, so it fires the truncation condition, and
   its CT-enabled seed list contains no contact page at all while its CT-less one
-  is almost all contact pages. Whether that costs addresses is exactly what the
-  A/B arm is for. n=1 proves nothing.
+  is almost all contact pages. Whether that costs addresses is what the A/B arm
+  measures; n=1 settles nothing.
 - **A CT outage masks truncation entirely** — roots collapse to 2, so nothing
   can ever fire. Run 1 could not have measured the thing it was measuring.
-- **`_verify_subdomains` probed 90 names in 8.4 seconds.** The unbounded probe
-  is far milder than the audit implied. Reassess whether it is a defect before
-  spending an ADR on it.
+- **`_verify_subdomains` probed 90 names in 8.4 seconds**, which is far milder
+  than the audit's ranking of it as a defect implied.
 
 ### Still open
 
-**The 403 defect is the one to take next**, and the only original defect left
-with hard evidence and no blocker: `_fetch` swallows every non-2xx, so
-`on_blocked` never fires and a refused seed vanishes. See `bhp.com` below.
+**The 403 defect**, with evidence and no blocker: `_fetch` swallows every
+non-2xx, so `on_blocked` never fires and a refused seed vanishes. See `bhp.com`
+below.
 
-Still Felipe's to decide, untouched: 20 seeds, link depth fixed at 3 (no caller
-passes `max_depth`, no setting anywhere), page cap 1000/2000/5000 by tier. The
+Undecided, and Felipe's: 20 seeds, link depth fixed at 3 (no caller passes
+`max_depth`, no setting anywhere), page cap 1000/2000/5000 by tier. The
 `Rápida / Profunda` selector in the GUI is *verification* depth (it flips SMTP
 on and off); there is no deep-crawl mode.
 
@@ -97,8 +96,8 @@ list. That is defect 4 caught in the act.
 the summary line carries no parentheses. Correctly classed as unreadable; it is
 not actually an anti-bot challenge, which the Spanish wording implies.
 
-**Page caps stay untouched until a parallel crawl has been measured.** ADR-0025
-says so explicitly; do not re-derive them from the old serial timings.
+**Page caps stay untouched until a parallel crawl has been measured**, which
+ADR-0025 decided explicitly. The old serial timings are not a basis for them.
 
 **Never name an organisation as this project's owner, sponsor or audience.** See
 "What this is" below. It has come back three times.
