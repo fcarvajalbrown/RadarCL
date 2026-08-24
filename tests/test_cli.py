@@ -105,7 +105,10 @@ def test_log_is_silent_when_quiet(capsys) -> None:
 
 def test_discover_prints_seeds_to_stdout(monkeypatch, capsys) -> None:
     """discover writes one seed URL per line to stdout."""
-    async def _fake_discover(domain, use_duckduckgo=True, max_seeds=20):
+    async def _fake_discover(
+        domain, use_duckduckgo=True, max_seeds=20,
+        on_source_unavailable=None,
+    ):
         return ["http://a.cl", "http://b.cl"]
 
     monkeypatch.setattr(cli, "discover_seeds", _fake_discover)
@@ -114,6 +117,49 @@ def test_discover_prints_seeds_to_stdout(monkeypatch, capsys) -> None:
     captured = capsys.readouterr()
     assert captured.out == "http://a.cl\nhttp://b.cl\n"
     assert "2 semillas encontradas." in captured.err
+
+
+def test_discover_reports_an_unreachable_source(monkeypatch, capsys) -> None:
+    """
+    stdout stays data-only, so the caveat goes to stderr with the reason
+    beside it - a CLI user debugging a scan is exactly who wants to know
+    which log returned what (ADR-0026).
+    """
+    async def _fake_discover(
+        domain, use_duckduckgo=True, max_seeds=20,
+        on_source_unavailable=None,
+    ):
+        if on_source_unavailable is not None:
+            on_source_unavailable(
+                'certificate-transparency', 'crt.sh HTTP 502; certspotter HTTP 429'
+            )
+        return ["http://a.cl"]
+
+    monkeypatch.setattr(cli, "discover_seeds", _fake_discover)
+
+    assert cli.main(["discover", "nunoa.cl"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "http://a.cl\n"
+    assert "no cubren subdominios" in captured.err or "subdominios" in captured.err
+    assert "crt.sh HTTP 502" in captured.err
+
+
+def test_a_quiet_discover_reports_nothing(monkeypatch, capsys) -> None:
+    """--quiet silences the caveat too; stdout still carries the data."""
+    async def _fake_discover(
+        domain, use_duckduckgo=True, max_seeds=20,
+        on_source_unavailable=None,
+    ):
+        if on_source_unavailable is not None:
+            on_source_unavailable('certificate-transparency', 'todo caido')
+        return ["http://a.cl"]
+
+    monkeypatch.setattr(cli, "discover_seeds", _fake_discover)
+
+    assert cli.main(["discover", "nunoa.cl", "--quiet"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "http://a.cl\n"
+    assert captured.err == ""
 
 
 def test_verify_parses_defaults() -> None:
@@ -436,7 +482,10 @@ def test_scan_still_succeeds_when_some_pages_were_readable(
 
 def test_scan_fails_when_no_seeds(monkeypatch, capsys) -> None:
     """With no seeds discovered, scan reports an error and exits 1."""
-    async def _no_seeds(domain, use_duckduckgo=True, max_seeds=20):
+    async def _no_seeds(
+        domain, use_duckduckgo=True, max_seeds=20,
+        on_source_unavailable=None,
+    ):
         return []
 
     monkeypatch.setattr(cli, "discover_seeds", _no_seeds)

@@ -26,7 +26,7 @@ from app.core.crawler import describe_walls
 from app.core.pipeline import describe_off_target
 from app.core.hw_profile import get_hw_profile
 from app.core.pattern_generator import COMMON_PATTERNS
-from app.core.seed_discoverer import discover_seeds
+from app.core.seed_discoverer import describe_ct_unavailable, discover_seeds
 from app.workers.crawler_worker import CrawlerWorker
 from app.workers.verifier_worker import VerifierWorker
 
@@ -62,9 +62,15 @@ class _DiscoveryWorker(QThread):
     -------
     seeds_found : Signal(list)
         Emitted when discovery completes with the seed list.
+    source_unavailable : Signal(str, str)
+        Emitted as (stage, reason) when every source for a seed stage failed.
+        Without it a scan of the bare domain is indistinguishable from a scan
+        of a domain with no subdomains, and the seed count is identical in
+        both (ADR-0026).
     """
 
     seeds_found: Signal = Signal(list)
+    source_unavailable: Signal = Signal(str, str)
 
     def __init__(self, domain: str) -> None:
         """
@@ -80,7 +86,11 @@ class _DiscoveryWorker(QThread):
 
     def run(self) -> None:
         """Run seed discovery in background thread."""
-        seeds = asyncio.run(discover_seeds(self._domain))
+        seeds = asyncio.run(discover_seeds(
+            self._domain,
+            on_source_unavailable=lambda stage, reason:
+                self.source_unavailable.emit(stage, reason),
+        ))
         self.seeds_found.emit(seeds)
 
 
@@ -117,6 +127,7 @@ class ControlPanel(QWidget):
         self._discovered_seeds: list[str] = []
         self._blocked_pages: list[tuple[str, str]] = []
         self._off_target: list[tuple[str, str]] = []
+        self._ct_unavailable: bool = False
         self._target_domain: str = ""
         self._pages_read: int = 0
         self._session_id: int | None = None
@@ -527,6 +538,7 @@ class ControlPanel(QWidget):
             return
 
         self._seed_error.hide()
+        self._ct_unavailable = False
         self._discover_btn.setEnabled(False)
         self._discover_btn.setText("⟳  Buscando…")
         self._seed_status.setText(f"Buscando semillas para {domain}…")
@@ -534,7 +546,21 @@ class ControlPanel(QWidget):
 
         self._discovery_worker = _DiscoveryWorker(domain)
         self._discovery_worker.seeds_found.connect(self._on_seeds_found)
+        self._discovery_worker.source_unavailable.connect(
+            self._on_source_unavailable
+        )
         self._discovery_worker.start()
+
+    def _on_source_unavailable(self, stage: str, reason: str) -> None:
+        """
+        Record that a seed stage could not run at all.
+
+        The seed count is identical whether or not this happened - the
+        semantic stage backfills the empty slots - so without this the user
+        cannot tell a scan of the bare domain from a scan of a domain with
+        no subdomains (ADR-0026).
+        """
+        self._ct_unavailable = True
 
     def _on_seeds_found(self, seeds: list[str]) -> None:
         """
@@ -547,7 +573,10 @@ class ControlPanel(QWidget):
         """
         self._discovered_seeds = seeds
         self._seed_list.setPlainText('\n'.join(seeds))
-        self._seed_status.setText(f"{len(seeds)} semillas encontradas")
+        status = f"{len(seeds)} semillas encontradas"
+        if self._ct_unavailable:
+            status = f"{status}. {describe_ct_unavailable()}"
+        self._seed_status.setText(status)
         self._discover_btn.setEnabled(True)
         self._discover_btn.setText("⟳  Buscar de nuevo")
 
@@ -815,6 +844,7 @@ class ControlPanel(QWidget):
     def _caveats(self) -> str:
         """Return the wall and off-domain notes, blank lines and all."""
         notes = [
+            describe_ct_unavailable() if self._ct_unavailable else '',
             describe_walls(self._blocked_pages, self._pages_read),
             describe_off_target(
                 len(self._off_target),
@@ -874,6 +904,7 @@ class ControlPanel(QWidget):
         self._collected_emails = []
         self._discovered_seeds = []
         self._blocked_pages = []
+        self._ct_unavailable = False
         self._pages_read = 0
         self._is_running = False
         self._is_paused = False

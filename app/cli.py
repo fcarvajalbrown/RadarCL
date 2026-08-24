@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from typing import Callable
 
 from app import __version__
 from app.core.crawler import describe_walls
@@ -24,7 +25,7 @@ from app.core.hw_profile import get_hw_profile
 from app.core.pipeline import (
     Discovery, crawl_and_extract, describe_off_target, verify_all,
 )
-from app.core.seed_discoverer import discover_seeds
+from app.core.seed_discoverer import describe_ct_unavailable, discover_seeds
 from app.core.session import new_session, save_email, update_session_totals
 
 
@@ -235,6 +236,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def report_unavailable(quiet: bool) -> Callable[[str, str], None]:
+    """
+    Build the stderr reporter for a seed stage that could not run.
+
+    The reason is carried too, since a CLI user debugging a scan is exactly
+    who wants to know which log returned what (ADR-0026).
+    """
+    def report(stage: str, reason: str) -> None:
+        log(describe_ct_unavailable(), quiet)
+        log(f"[fuente] {stage}: {reason}", quiet)
+
+    return report
+
+
 def cmd_discover(args: argparse.Namespace) -> int:
     """Run seed discovery and print the seeds to stdout."""
     domain = args.domain.lstrip('@').lower().strip()
@@ -244,6 +259,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
         domain,
         use_duckduckgo=not args.no_duckduckgo,
         max_seeds=args.max_seeds,
+        on_source_unavailable=report_unavailable(args.quiet),
     ))
 
     for seed in seeds:
@@ -426,6 +442,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
             domain,
             use_duckduckgo=not args.no_duckduckgo,
             max_seeds=args.max_seeds,
+            on_source_unavailable=report_unavailable(args.quiet),
         ))
         log(f"{len(seeds)} semillas encontradas.", args.quiet)
 

@@ -232,6 +232,85 @@ def test_discover_seeds_survives_total_ct_failure(monkeypatch) -> None:
     assert 'https://www.nunoa.cl' in seeds
 
 
+def _stub_stages(monkeypatch) -> None:
+    """Replace verification and scoring so only stage 1 is under test."""
+    async def _live(subdomains, client):
+        return [f"https://{host}" for host in subdomains]
+
+    async def _no_links(base_url, domain, entity_type, client):
+        return []
+
+    monkeypatch.setattr(seed_discoverer, '_verify_subdomains', _live)
+    monkeypatch.setattr(seed_discoverer, '_semantic_seeds_from_url', _no_links)
+
+
+def test_total_ct_failure_is_reported(monkeypatch) -> None:
+    """
+    The seed count is identical whether or not stage 1 ran, so silence
+    makes a scan of the bare domain indistinguishable from a scan of a
+    domain with no subdomains (ADR-0026).
+    """
+    _patch_chain(monkeypatch, _fail('crt.sh down'), _fail('certspotter down'))
+    _stub_stages(monkeypatch)
+    reported: list[tuple[str, str]] = []
+
+    asyncio.run(discover_seeds(
+        'nunoa.cl', use_duckduckgo=False,
+        on_source_unavailable=lambda stage, reason:
+            reported.append((stage, reason)),
+    ))
+
+    assert len(reported) == 1
+    stage, reason = reported[0]
+    assert stage == 'certificate-transparency'
+    assert 'crt.sh down' in reason and 'certspotter down' in reason
+
+
+def test_a_source_with_no_records_is_not_reported(monkeypatch) -> None:
+    """
+    ADR-0011's distinction is the load-bearing one: a source that answered
+    'no certificates' has answered, and a domain that genuinely has no
+    subdomains must not grow a caveat it has no reason to carry.
+    """
+    async def _empty(domain, client):
+        return []
+
+    _patch_chain(monkeypatch, _empty, _empty)
+    _stub_stages(monkeypatch)
+    reported: list[tuple[str, str]] = []
+
+    seeds = asyncio.run(discover_seeds(
+        'nunoa.cl', use_duckduckgo=False,
+        on_source_unavailable=lambda stage, reason:
+            reported.append((stage, reason)),
+    ))
+
+    assert reported == []
+    assert 'https://nunoa.cl' in seeds
+
+
+def test_the_wording_says_what_is_missing() -> None:
+    """
+    It names the gap, not the status code. Which certificate log returned
+    what belongs in the debug output, not in the answer.
+    """
+    message = seed_discoverer.describe_ct_unavailable()
+
+    assert 'subdominios' in message
+    assert 'no significa' in message
+    assert 'crt.sh' not in message and '502' not in message
+
+
+def test_discovery_without_a_callback_still_works(monkeypatch) -> None:
+    """The parameter is optional, so every existing caller keeps working."""
+    _patch_chain(monkeypatch, _fail('crt.sh down'), _fail('certspotter down'))
+    _stub_stages(monkeypatch)
+
+    seeds = asyncio.run(discover_seeds('nunoa.cl', use_duckduckgo=False))
+
+    assert 'https://nunoa.cl' in seeds
+
+
 # ── Link scoring
 
 def _page(markup: str):

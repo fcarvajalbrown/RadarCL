@@ -714,10 +714,30 @@ async def _duckduckgo_seeds(
     return urls
 
 
+def describe_ct_unavailable() -> str:
+    """
+    Phrase what an unreachable subdomain source means, in the reader's terms.
+
+    Lives beside the failure so the CLI and the GUI cannot drift into saying
+    different things about the same event, the way `describe_walls` and
+    `describe_off_target` already do
+    ([ADR-0026](../../docs/adr/0026-a-source-that-could-not-be-reached-says-so.md)).
+
+    It names what is missing rather than what failed: which certificate log
+    returned which status code belongs in the debug feed, not in the answer.
+    """
+    return (
+        "No se pudo consultar la fuente de subdominios. Las semillas cubren "
+        "solo el dominio indicado, no sus subdominios, y el resultado no "
+        "significa que no existan."
+    )
+
+
 async def discover_seeds(
     domain: str,
     use_duckduckgo: bool = True,
     max_seeds: int = 20,
+    on_source_unavailable: Callable[[str, str], None] | None = None,
 ) -> list[str]:
     """
     Discover seed URLs for a target domain using cascading strategies.
@@ -740,6 +760,13 @@ async def discover_seeds(
         If True, include DuckDuckGo search results.
     max_seeds : int
         Maximum number of seeds to return.
+    on_source_unavailable : Callable[[str, str], None] | None
+        Called with (stage, reason) when every source for a stage failed, so
+        nothing is known rather than nothing exists. Only stage 1 reports
+        today. A source that answered with no records has answered and is
+        never reported, which is ADR-0011's distinction and the load-bearing
+        one: a domain with genuinely no subdomains must not grow a caveat
+        (ADR-0026).
 
     Returns
     -------
@@ -769,8 +796,10 @@ async def discover_seeds(
         # crt.sh → CertSpotter fallback happens inside it.
         try:
             subdomains = await _ct_subdomains(domain, client)
-        except CTUnavailable:
+        except CTUnavailable as exc:
             subdomains = []
+            if on_source_unavailable is not None:
+                on_source_unavailable('certificate-transparency', str(exc))
 
         # Always include base and www
         for base in [domain, f"www.{domain}"]:
