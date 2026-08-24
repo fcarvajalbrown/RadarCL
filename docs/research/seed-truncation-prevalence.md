@@ -240,6 +240,39 @@ Two things this run did establish, neither of them the question asked:
 Run 2 needs a pacing and caching strategy, and possibly an authenticated
 CertSpotter key. Neither is decided here.
 
+## Run 2, 2026-08-24: blocked, not started
+
+Blocked on `crt.sh`, which has answered 502 for over a day. The study cannot
+run without it, and the reason is a measured ceiling rather than an estimate.
+
+Fifteen consecutive full-domain queries were sent to CertSpotter with a free
+API key:
+
+| Queries | Result |
+|---|---|
+| 1-10 | 200 |
+| 11-15 | 429 |
+
+Exactly ten, then refused. SSLMate's published free tier is 10 full-domain
+queries an hour **with or without an account**, and
+`_certspotter_subdomains`'s own docstring already recorded the unauthenticated
+figure. An API key was obtained before this was checked and buys nothing here;
+`include_subdomains=true` is a full-domain query, and the 100/hour allowance
+applies to single-hostname queries, which cannot enumerate subdomains and so
+cannot answer this study's question.
+
+At 10 an hour, the 706 units need about 71 hours of wall clock. Frame A alone
+would need ten. Both are dominated by simply waiting for the source that has no
+cap, which is the reason
+[ADR-0011](../adr/0011-ct-fallback-and-source-hygiene.md) puts crt.sh first.
+
+**State preserved for whoever picks this up:** the frames, the draw, the seed,
+the eligibility rules and the decision thresholds are all committed above and do
+not need redoing. Ten domains are already in the CT cache. The measurement
+script reads certificate names from that cache only and can no longer make a
+live CT call, so resuming cannot re-burn a quota. Nothing here needs redeciding;
+it needs crt.sh answering.
+
 ## What this does not decide
 
 Whether to reserve slots is one question. How many to reserve is another, and
