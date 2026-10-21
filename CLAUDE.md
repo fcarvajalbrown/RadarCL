@@ -4,6 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Where this left off — read first (2026-08-24)
 
+**Felipe decided this repo is to be archived.** Prospector, the port of this
+code into Decisorio (`C:\Users\Beetlejuice\Desktop\Decisorio`, its ADR 0019),
+supersedes it and is where the work continues. Nothing here is to be built,
+released or installed on that basis: the pending 0.1 bump described below is
+**not** to be cut, and the "Releases" section stands as history, not as an
+instruction. The archiving itself is Felipe's to do and has not been done.
+
 **Two ADRs landed and shipped since v0.6.0, and a third thing is parked.**
 
 [ADR-0025](docs/adr/0025-concurrency-is-real-and-the-user-sets-it.md):
